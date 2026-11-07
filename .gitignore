@@ -1,2 +1,9 @@
 # hand-off copies for sharing outside CurseForge
 share/
+
+# secrets: never commit tokens or keys
+api key*.txt
+*token*.txt
+*.key
+.env
+.env.*
