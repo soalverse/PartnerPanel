@@ -10,7 +10,7 @@ P.PREFIX = "PartnerPanel" -- addon message prefix (WoW allows 16 chars)
 P.SEP = "\t"
 P.MAX_LEN = 255          -- WoW's addon message limit, in bytes
 P.MOOD_MAX = 60
-P.TEXT_MAX = 48          -- zone / subzone
+P.TEXT_MAX = 40          -- zone / subzone (leaves room for the Battle.net envelope)
 
 -- Cuts a string to at most n bytes without splitting a UTF-8 character.
 function P.Truncate(s, n)
@@ -102,6 +102,21 @@ function P.Unaddress(msg)
         return to, rest
     end
     return nil, msg
+end
+
+-- Messages sent through Battle.net also carry who they are from, because Battle.net
+-- only tells the receiver an account number, not a character name:
+-- "@Demo Chan>Ally Rose:<message>".
+function P.WrapBNet(to, from, msg)
+    return "@" .. to .. ">" .. from .. ":" .. msg
+end
+
+-- Returns to, from, message  -- or nil if it is not a Battle.net envelope.
+function P.UnwrapBNet(msg)
+    if type(msg) ~= "string" then
+        return nil
+    end
+    return msg:match("^@([^:>]+)>([^:>]+):(.*)$")
 end
 
 -- Names. WoW Forever names are a first name + surname, unique per region, no realm:

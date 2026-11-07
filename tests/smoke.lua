@@ -101,15 +101,39 @@ local function sendAddon(from, prefix, msg, channel, target)
     return 0
 end
 
+-- Battle.net: friendships, and game data delivered between online friends.
+local friendships = {}
+local function bnetFriends(a, b)
+    return friendships[a] ~= nil and friendships[a][b] == true
+end
+local function makeFriends(a, b)
+    friendships[a] = friendships[a] or {}
+    friendships[b] = friendships[b] or {}
+    friendships[a][b], friendships[b][a] = true, true
+end
+
+local function sendBNet(from, id, prefix, text)
+    if #text > 255 then error("Battle.net message over 255 bytes: " .. #text) end
+    from.sent[#from.sent + 1] = { channel = "BNET", target = id, msg = text }
+    for _, o in ipairs(clients) do
+        if o.gaid == id and bnetFriends(from, o) and o.connected and from.connected then
+            schedule(0.1, function() fire(o, "BN_CHAT_MSG_ADDON", prefix, text, "WHISPER", from.gaid) end)
+        end
+    end
+end
+
 ---------------------------------------------------------------------------
 -- A fake player running the addon
 ---------------------------------------------------------------------------
 local function newClient(first, last, zone)
+    local n = #clients + 1
     local c = {
         first = first, last = last, name = first .. " " .. last,
         zone = zone, subzone = "", level = 10, class = "MAGE",
         afk = false, combat = false, hp = 80, maxhp = 100, connected = true,
         registered = {}, fontStrings = {}, log = {}, sent = {}, popups = {},
+        -- Battle.net: how this player's game account looks in a friend's list
+        gaid = 1000 + n, battleTag = first .. "#" .. (4000 + n), bnetChar = first, bnetRealm = last,
     }
     local env = {}
     setmetatable(env, { __index = _G })
@@ -178,6 +202,44 @@ local function newClient(first, last, zone)
         if u then return u.first, u.last end
         return nil
     end
+    env.UnitGUID = function(unit)
+        local u = unitClient(unit)
+        return u and ("Player-" .. u.name) or nil
+    end
+
+    local function friendList()
+        local list = {}
+        for _, o in ipairs(clients) do
+            if o ~= c and bnetFriends(c, o) then list[#list + 1] = o end
+        end
+        return list
+    end
+    local function gameInfo(o)
+        return { gameAccountID = o.gaid, isOnline = o.connected, clientProgram = "WoW",
+                 characterName = o.bnetChar, realmName = o.bnetRealm }
+    end
+    env.BNET_CLIENT_WOW = "WoW"
+    env.BNGetNumFriends = function() local l = friendList(); return #l, #l end
+    env.C_BattleNet = {
+        GetFriendAccountInfo = function(i)
+            local o = friendList()[i]
+            if o then return { battleTag = o.battleTag, gameAccountInfo = gameInfo(o) } end
+        end,
+        GetFriendNumGameAccounts = function(i) return friendList()[i] and 1 or 0 end,
+        GetFriendGameAccountInfo = function(i, j)
+            local o = friendList()[i]
+            if o and j == 1 then return gameInfo(o) end
+        end,
+        GetAccountInfoByGUID = function(guid)
+            for _, o in ipairs(clients) do
+                if ("Player-" .. o.name) == guid and bnetFriends(c, o) then
+                    return { battleTag = o.battleTag, gameAccountInfo = gameInfo(o) }
+                end
+            end
+        end,
+        SendGameData = function(id, prefix, text) return sendBNet(c, id, prefix, text) end,
+    }
+
     env.UnitExists = function(unit) return unitClient(unit) ~= nil end
     env.UnitIsPlayer = function(unit) return unitClient(unit) ~= nil end
     env.UnitIsUnit = function(a, b) return unitClient(a) == unitClient(b) end
@@ -351,6 +413,91 @@ advance(2)
 check("Ally is unlinked", ally.ns.db.partner == nil)
 check("Bram hears the unlink", bram.ns.db.partner == nil and logHas(bram, "Ally Rose unlinked from you"))
 check("panel back to not-linked", panel(ally).name == "No partner linked yet", panel(ally).name)
+
+---------------------------------------------------------------------------
+-- Battle.net: live updates while NOT grouped (e.g. he is off in a raid)
+---------------------------------------------------------------------------
+local function roster()
+    for _, c in ipairs(clients) do fire(c, "GROUP_ROSTER_UPDATE") end
+end
+local function link(a, b)
+    a.slash("link")
+    advance(1)
+    local p = b.popups[#b.popups]
+    b.env.StaticPopupDialogs[p.which].OnAccept(nil, p.data)
+    advance(5)
+end
+
+makeFriends(ally, bram)
+group = { ally, bram }
+roster()
+advance(1)
+link(ally, bram)
+check("BN: relinked while grouped", ally.ns.db.partner == "Bram Stone" and bram.ns.db.partner == "Ally Rose")
+check("BN: BattleTag learned from the group", ally.ns.db.partnerBattleTag == bram.battleTag, ally.ns.db.partnerBattleTag)
+check("BN: grouped still prefers the group channel", ally.ns.Comm.Route("Bram Stone") == "PARTY")
+
+-- He leaves to join a raid with other people
+group = { bram, cara }
+roster()
+advance(3)
+check("BN: after ungrouping, the route is Battle.net", ally.ns.Comm.Route("Bram Stone") == "BNET")
+check("BN: hello goes out over Battle.net straight away", ally.sent[#ally.sent].channel == "BNET")
+
+bram.zone, bram.subzone = "Duskwood", "Darkshire"
+fire(bram, "ZONE_CHANGED_NEW_AREA")
+advance(3)
+check("BN: his zone change reaches her while ungrouped", panel(ally).line2 == "Duskwood - Darkshire", panel(ally).line2)
+check("BN: her card knows it came through Battle.net", ally.ns.partnerState.via == "BNET", ally.ns.partnerState.via)
+
+ally.slash("mood come find me!")
+advance(3)
+check("BN: her mood reaches him", panel(bram).line3:find("come find me!", 1, true) ~= nil, panel(bram).line3)
+check("BN: he still reaches his raid over the group channel", bram.ns.Comm.Route("Cara Moss") == "PARTY")
+
+local onlyBram = true
+for _, s in ipairs(ally.sent) do
+    if s.channel == "BNET" and s.target ~= bram.gaid then onlyBram = false end
+end
+check("BN: Battle.net messages only ever go to the partner", onlyBram)
+check("BN: Cara (not a Battle.net friend) never got a popup or link", #cara.popups == 0 and cara.ns.db.partner == nil)
+
+advance(300)
+check("BN: still live after 5 minutes apart", ally.ns.partnerState.online == true and bram.ns.partnerState.online == true)
+
+-- Forever might list character names in an unexpected shape: the BattleTag still finds him.
+bram.bnetChar, bram.bnetRealm = "Bramble", nil
+local bramSendBN = bram.env.C_BattleNet.SendGameData
+bram.env.C_BattleNet.SendGameData = function() end -- keep him quiet so nothing refreshes the cache
+advance(35)
+check("BN: found by BattleTag when the name does not match", ally.ns.BNet.Resolve("Bram Stone") == bram.gaid)
+bram.env.C_BattleNet.SendGameData = bramSendBN
+
+-- Status command explains the route
+ally.slash("status")
+check("BN: status names the Battle.net route", logHas(ally, "Sending to them through: Battle.net"))
+check("BN: status reports Battle.net found them", logHas(ally, "Battle.net: found them online"))
+
+-- Linking from scratch without grouping, between Battle.net friends
+group = {}
+roster()
+ally.slash("unlink")
+advance(2)
+check("BN: unlink reaches him over Battle.net", bram.ns.db.partner == nil)
+bram.bnetChar, bram.bnetRealm = "Bram", "Stone"
+ally.slash("link Bram Stone")
+advance(1)
+local p = bram.popups[#bram.popups]
+check("BN: link request arrives without a group", p and p.data == "Ally Rose", p and p.data)
+bram.env.StaticPopupDialogs[p.which].OnAccept(nil, p.data)
+advance(5)
+check("BN: linked without ever grouping", ally.ns.db.partner == "Bram Stone" and bram.ns.db.partner == "Ally Rose")
+
+-- He logs off: Battle.net shows him offline, the card follows
+bram.connected = false
+advance(130)
+check("BN: her card shows him offline after he logs off", ally.ns.partnerState.online == false)
+check("BN: offline card says so", panel(ally).line3:find("Offline, or out of reach", 1, true) ~= nil, panel(ally).line3)
 
 print(("%d passed, %d failed"):format(passed, failed))
 if failed > 0 then

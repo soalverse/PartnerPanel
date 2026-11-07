@@ -14,6 +14,12 @@ local OFFLINE_AFTER = 120 -- no word for this long = offline / out of reach
 local partner = { online = false }
 ns.partnerState = partner
 
+-- Whether the partner was in our group at the last check (to notice the route changing).
+local wasGrouped = false
+local function partnerGrouped()
+    return ns.db and ns.db.partner and ns.FindGroupUnit(ns.db.partner) ~= nil or false
+end
+
 local function safe(v)
     if ns.IsSecret(v) then
         return nil
@@ -109,6 +115,7 @@ function ns.GetPartnerView()
         status = partner.status,
         lastSeen = partner.lastSeen,
         version = partner.version,
+        via = partner.via,
         grouped = ns.FindGroupUnit(name) ~= nil,
         lastKnown = ns.db.lastKnown,
     }
@@ -117,15 +124,25 @@ end
 ---------------------------------------------------------------------------
 -- Partner presence
 ---------------------------------------------------------------------------
-local function markSeen(version)
+local function markSeen(version, via)
     local wasOnline = partner.online
     partner.online = true
     partner.lastSeen = GetTime()
+    partner.via = via or partner.via
     if version and version ~= "" then
         partner.version = version
     end
     if not wasOnline then
         ns.Fire("PARTNER_UPDATED")
+    end
+end
+
+-- While grouped with the partner, learn their BattleTag so Battle.net can find them later.
+local function learnBattleTag()
+    local p = ns.db and ns.db.partner
+    local unit = p and ns.FindGroupUnit(p)
+    if unit and ns.BNet then
+        ns.BNet.LearnFromUnit(unit, p)
     end
 end
 
@@ -142,18 +159,19 @@ local function resetPartner()
     partner.status = nil
     partner.lastSeen = nil
     partner.version = nil
+    partner.via = nil
 end
 
-ns.Listen("MESSAGE", function(kind, fields, from)
+ns.Listen("MESSAGE", function(kind, fields, from, channel)
     local p = ns.db.partner
     if not p or not ns.SameName(p, from) then
         return
     end
     if kind == "HELLO" then
-        markSeen(fields[1])
+        markSeen(fields[1], channel)
         Status.MarkDirty(0.2)
     elseif kind == "STATUS" then
-        markSeen()
+        markSeen(nil, channel)
         local s = P.DecodeStatus(fields)
         partner.status = s
         ns.db.lastKnown = { zone = s.zone, subzone = s.subzone, level = s.level, class = s.class, at = time() }
@@ -169,6 +187,8 @@ end)
 
 ns.Listen("PARTNER_CHANGED", function()
     resetPartner()
+    wasGrouped = partnerGrouped()
+    learnBattleTag()
     ns.Fire("PARTNER_UPDATED")
 end)
 
@@ -195,14 +215,17 @@ healthFrame:SetScript("OnEvent", function()
     Status.MarkDirty(3)
 end)
 
--- When the partner joins (or rejoins) our group, say hello so we connect straight away.
-local wasGrouped = false
+-- When the partner joins or leaves our group, the route changes (group <-> Battle.net):
+-- say hello on the new route straight away rather than waiting for the next heartbeat.
 ns.OnEvent("GROUP_ROSTER_UPDATE", function()
     if not ns.db then
         return
     end
-    local grouped = ns.db.partner and ns.FindGroupUnit(ns.db.partner) ~= nil or false
-    if grouped and not wasGrouped then
+    local grouped = partnerGrouped()
+    if grouped then
+        learnBattleTag()
+    end
+    if grouped ~= wasGrouped then
         Status.SayHello()
     end
     wasGrouped = grouped
@@ -210,7 +233,8 @@ ns.OnEvent("GROUP_ROSTER_UPDATE", function()
 end)
 
 ns.Listen("LOGIN", function()
-    wasGrouped = ns.db.partner and ns.FindGroupUnit(ns.db.partner) ~= nil or false
+    wasGrouped = partnerGrouped()
+    learnBattleTag()
     C_Timer.After(3, Status.SayHello)
 
     C_Timer.NewTicker(HEARTBEAT, sendStatus)

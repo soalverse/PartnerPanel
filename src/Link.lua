@@ -10,10 +10,11 @@ local REQUEST_TIMEOUT = 20
 local pending -- { name } while waiting for an answer
 
 local function setPartner(name)
-    ns.db.partner = name
-    if not name then
-        ns.db.lastKnown = nil
+    if not (name and ns.db.partner and ns.SameName(name, ns.db.partner)) then
+        ns.db.lastKnown = nil        -- a different person (or nobody): forget the old one
+        ns.db.partnerBattleTag = nil
     end
+    ns.db.partner = name
     ns.Fire("PARTNER_CHANGED", name)
 end
 
@@ -36,14 +37,16 @@ function Link.Request(name)
     pending = { name = name }
     ns.Comm.Send(name, P.Encode("LINKREQ", ns.VERSION))
     ns.Print("Asked %s to link up. They'll get a popup to accept.", name)
-    if not ns.FindGroupUnit(name) then
-        ns.Print("Tip: invite them to a group first - on WoW Forever, Partner Panel talks over the group channel.")
+    if not ns.FindGroupUnit(name) and not (ns.BNet and ns.BNet.Resolve(name)) then
+        ns.Print("Tip: invite them to a group first. Outside a group, Partner Panel can only reach"
+            .. " Battle.net friends.")
     end
     local request = pending
     C_Timer.After(REQUEST_TIMEOUT, function()
         if pending == request then
             pending = nil
-            ns.Print("No answer from %s. Check you're grouped together and they have Partner Panel enabled.", name)
+            ns.Print("No answer from %s. Check you're grouped together (or Battle.net friends)"
+                .. " and they have Partner Panel enabled.", name)
         end
     end)
 end

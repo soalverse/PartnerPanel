@@ -23,8 +23,11 @@ local function status()
     local st = ns.partnerState
     local channel = ns.Comm.Route(partner)
     ns.Print("Linked with %s - %s.", partner, st.online and "|cff7fff7fconnected|r" or "|cff9d9d9dnot connected|r")
-    ns.Print("Messages go over: %s%s", channel,
-        channel == "WHISPER" and " (may not arrive on WoW Forever - group up!)" or "")
+    ns.Print("Sending to them through: %s", ns.Comm.Describe(channel))
+    if st.via then
+        ns.Print("Hearing from them through: %s", ns.Comm.Describe(st.via))
+    end
+    ns.Print("Battle.net: %s", ns.BNet.Describe(partner))
     if st.lastSeen then
         ns.Print("Last heard from them %s (their version %s).", ns.Ago(GetTime() - st.lastSeen), st.version or "?")
     end

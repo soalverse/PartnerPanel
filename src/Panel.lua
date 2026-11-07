@@ -93,7 +93,7 @@ function Panel.Render()
         if v.grouped then
             line3:SetText("|cff9d9d9dIn your group - waiting to hear from them|r")
         else
-            line3:SetText("|cff9d9d9dOffline, or not in your group|r")
+            line3:SetText("|cff9d9d9dOffline, or out of reach|r")
         end
     end
 end
@@ -121,6 +121,9 @@ local function showTooltip(self)
         GameTooltip:AddDoubleLine("Linked with", v.name, 1, 1, 1, 1, 1, 1)
         if v.online then
             GameTooltip:AddDoubleLine("Last heard from", ns.Ago(GetTime() - (v.lastSeen or GetTime())), 1, 1, 1, 1, 1, 1)
+            if v.via then
+                GameTooltip:AddDoubleLine("Connected through", ns.Comm.Describe(v.via), 1, 1, 1, 1, 1, 1)
+            end
         end
         if v.version then
             GameTooltip:AddDoubleLine("Their version", v.version, 1, 1, 1, 0.7, 0.7, 0.7)

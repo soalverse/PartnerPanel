@@ -1,10 +1,11 @@
 -- Partner Panel: talking to your partner's copy of the addon.
 --
--- How messages travel on WoW Forever: addon messages over the GROUP channel arrive
--- reliably; addon WHISPERS between players haven't been seen to arrive. So when your
--- partner is in your group we send on the group channel, addressed to them ("@Name:..."),
--- and everyone else's copy ignores it. When you're not grouped we still try a whisper,
--- in case it works (and so it starts working if Blizzard fixes it).
+-- How messages travel, best route first:
+--   1. GROUP: when your partner is in your group, on the group channel, addressed to them
+--      ("@Name:..."); everyone else's copy ignores it. Proven on WoW Forever.
+--   2. BATTLE.NET: when you are not grouped but are Battle.net friends (BNet.lua).
+--   3. WHISPER: a last resort. Addon whispers between players have not been seen to
+--      arrive on Forever, but we still try, in case Blizzard fixes it.
 local _, ns = ...
 local P = ns.Protocol
 
@@ -32,7 +33,7 @@ local function groupChannel()
     return nil
 end
 
--- Returns channel, whisperTarget
+-- Returns channel, target  ("PARTY"/"RAID"/"INSTANCE_CHAT", nil | "BNET", gameAccountID | "WHISPER", name)
 function Comm.Route(to)
     if ns.FindGroupUnit(to) then
         local channel = groupChannel()
@@ -40,7 +41,23 @@ function Comm.Route(to)
             return channel, nil
         end
     end
+    local gameAccountID = ns.BNet and ns.BNet.Resolve(to)
+    if gameAccountID then
+        return "BNET", gameAccountID
+    end
     return "WHISPER", to
+end
+
+-- How a route reads to a person.
+function Comm.Describe(channel)
+    if channel == "BNET" then
+        return "Battle.net"
+    elseif channel == "WHISPER" then
+        return "whisper (may not arrive on WoW Forever)"
+    elseif channel then
+        return "your group"
+    end
+    return "nothing yet"
 end
 
 -- Throttled ("too many, slow down") or held back (combat lockdown): try again shortly.
@@ -68,12 +85,16 @@ local function flush()
         local item = queue[1]
         local channel, target = Comm.Route(item.to)
         local msg = item.msg
-        if channel ~= "WHISPER" then
-            msg = P.Address(item.to, msg)
-        end
-        if #msg > P.MAX_LEN then
+        if channel == "BNET" then
+            ns.BNet.Send(target, item.to, msg)
+            table.remove(queue, 1)
+            tokens = tokens - 1
+        elseif channel ~= "WHISPER" and #P.Address(item.to, msg) > P.MAX_LEN or #msg > P.MAX_LEN then
             table.remove(queue, 1) -- shouldn't happen; drop rather than send garbage
         else
+            if channel ~= "WHISPER" then
+                msg = P.Address(item.to, msg)
+            end
             local ok, result = pcall(C_ChatInfo.SendAddonMessage, P.PREFIX, msg, channel, target)
             if ok and shouldRetry(result) then
                 item.tries = (item.tries or 0) + 1

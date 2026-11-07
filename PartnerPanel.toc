@@ -9,6 +9,7 @@
 
 src\Protocol.lua
 src\Core.lua
+src\BNet.lua
 src\Comm.lua
 src\Link.lua
 src\Status.lua

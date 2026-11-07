@@ -153,6 +153,34 @@ test("worst-case addressed status fits in one addon message", function()
     assert(#msg <= P.MAX_LEN, "message is " .. #msg .. " bytes")
 end)
 
+test("Battle.net envelope round trip", function()
+    local msg = P.WrapBNet("Demo Chan", "Ally Rose", "1\tHELLO\t0.2.0")
+    local to, from, body = P.UnwrapBNet(msg)
+    eq(to, "Demo Chan")
+    eq(from, "Ally Rose")
+    eq(body, "1\tHELLO\t0.2.0")
+end)
+
+test("Battle.net unwrap rejects group-style and garbage", function()
+    eq(P.UnwrapBNet("@Demo Chan:1\tHELLO"), nil)
+    eq(P.UnwrapBNet("1\tHELLO"), nil)
+    eq(P.UnwrapBNet(nil), nil)
+end)
+
+test("old group parser ignores Battle.net envelopes (no cross-talk)", function()
+    local to = P.Unaddress(P.WrapBNet("Demo Chan", "Ally Rose", "1\tHELLO"))
+    assert(to ~= "Demo Chan", "a v0.1 reader must not treat it as addressed to Demo Chan")
+end)
+
+test("worst-case Battle.net status fits in one message", function()
+    local msg = P.WrapBNet(string.rep("N", 30), string.rep("F", 30), P.EncodeStatus({
+        level = 60, class = "DEATHKNIGHT", zone = string.rep("z", 100), subzone = string.rep("s", 100),
+        flags = { afk = true, dnd = true, combat = true, dead = true, ghost = true, resting = true },
+        hp = 100, mood = string.rep("m", 100),
+    }))
+    assert(#msg <= P.MAX_LEN, "message is " .. #msg .. " bytes")
+end)
+
 print(("%d passed, %d failed"):format(passed, failed))
 if failed > 0 then
     os.exit(1)
