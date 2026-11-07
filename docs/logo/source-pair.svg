@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 480" width="480" height="480">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="45%" r="55%">
+      <stop offset="0" stop-color="#333"/>
+      <stop offset="1" stop-color="#000"/>
+    </radialGradient>
+    <path id="heart" d="M0,95 C-75,45 -100,-5 -70,-45 C-45,-75 -10,-65 0,-35 C10,-65 45,-75 70,-45 C100,-5 75,45 0,95 Z"/>
+  </defs>
+  <rect width="480" height="480" fill="#000"/>
+  <circle cx="240" cy="230" r="230" fill="url(#glow)"/>
+  <!-- heart above, between them -->
+  <use href="#heart" transform="translate(240 112) scale(0.7)" fill="#fff"/>
+  <!-- left person, a little dimmer -->
+  <circle cx="150" cy="262" r="56" fill="#c8c8c8"/>
+  <path d="M50,450 C50,362 95,330 150,330 C205,330 250,362 250,450 Z" fill="#c8c8c8"/>
+  <!-- right person, with a wide black gap where they meet -->
+  <circle cx="330" cy="262" r="56" fill="#fff"/>
+  <path d="M230,450 C230,362 275,330 330,330 C385,330 430,362 430,450 Z" fill="#000" stroke="#000" stroke-width="44"/>
+  <path d="M230,450 C230,362 275,330 330,330 C385,330 430,362 430,450 Z" fill="#fff"/>
+</svg>

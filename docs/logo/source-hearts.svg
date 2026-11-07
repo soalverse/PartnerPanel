@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 480" width="480" height="480">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#3a3a3a"/>
+      <stop offset="1" stop-color="#000"/>
+    </radialGradient>
+    <radialGradient id="front" cx="45%" cy="40%" r="65%">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset="0.7" stop-color="#e6e6e6"/>
+      <stop offset="1" stop-color="#bdbdbd"/>
+    </radialGradient>
+    <radialGradient id="back" cx="45%" cy="40%" r="65%">
+      <stop offset="0" stop-color="#9a9a9a"/>
+      <stop offset="1" stop-color="#6a6a6a"/>
+    </radialGradient>
+    <path id="heart" d="M0,95 C-75,45 -100,-5 -70,-45 C-45,-75 -10,-65 0,-35 C10,-65 45,-75 70,-45 C100,-5 75,45 0,95 Z"/>
+  </defs>
+  <rect width="480" height="480" fill="#000"/>
+  <circle cx="240" cy="240" r="230" fill="url(#glow)"/>
+  <use href="#heart" transform="translate(190 205) scale(1.45)" fill="url(#back)"/>
+  <use href="#heart" transform="translate(290 270) scale(1.45)" fill="#000" stroke="#000" stroke-width="18"/>
+  <use href="#heart" transform="translate(290 270) scale(1.45)" fill="url(#front)"/>
+</svg>

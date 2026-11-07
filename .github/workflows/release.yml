@@ -1,0 +1,42 @@
+# Tests every push. Pushing a version tag (e.g. v0.2.0) also builds the addon zip,
+# makes a GitHub release, and uploads it to CurseForge.
+#
+# CurseForge upload needs two things:
+#   1. "## X-Curse-Project-ID: <id>" in PartnerPanel.toc
+#   2. A repo secret named CF_API_TOKEN (GitHub > repo Settings > Secrets and variables > Actions)
+# Without them, the release still happens on GitHub; the CurseForge step is skipped.
+name: Test and release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LuaJIT
+        run: sudo apt-get update && sudo apt-get install -y luajit
+      - name: Unit tests
+        run: luajit tests/test_protocol.lua
+      - name: Smoke test
+        run: luajit tests/smoke.lua
+
+  release:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Package and release
+        uses: BigWigsMods/packager@v2

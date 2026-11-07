@@ -1,0 +1,12 @@
+# Release packaging (BigWigs packager). The zip contains PartnerPanel/PartnerPanel.toc + src/.
+package-as: PartnerPanel
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
+ignore:
+  - tests
+  - share
+  - docs
+  - README.md

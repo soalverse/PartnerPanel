@@ -1,0 +1,17 @@
+## Interface: 16001
+## Title: Partner Panel
+## Notes: Link up with your favourite person and see each other at a glance.
+## Author: Alexia
+## Version: 0.1.0
+## X-Curse-Project-ID: 1789713
+## IconTexture: Interface\Icons\INV_Misc_Rune_01
+## SavedVariablesPerCharacter: PartnerPanelCharDB
+
+src\Protocol.lua
+src\Core.lua
+src\Comm.lua
+src\Link.lua
+src\Status.lua
+src\Panel.lua
+src\Demo.lua
+src\Commands.lua
