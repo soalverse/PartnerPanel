@@ -62,7 +62,13 @@ local function uiObject(client, kind)
     function o:IsShown() return self.shown end
     function o:GetPoint() return "TOPLEFT", nil, "TOPLEFT", 24, -140 end
     function o:SetValue(v) self.value = v end
-    function o:CreateTexture() return uiObject(client, "Texture") end
+    function o:SetTexture(t) self.texture = t end
+    function o:SetStatusBarColor(r, g, b) self.barColor = { r, g, b } end
+    function o:CreateTexture()
+        local tex = uiObject(client, "Texture")
+        table.insert(client.textures, tex)
+        return tex
+    end
     function o:CreateFontString()
         local fs = uiObject(client, "FontString")
         table.insert(client.fontStrings, fs)
@@ -130,8 +136,8 @@ local function newClient(first, last, zone)
     local c = {
         first = first, last = last, name = first .. " " .. last,
         zone = zone, subzone = "", level = 10, class = "MAGE",
-        afk = false, combat = false, hp = 80, maxhp = 100, connected = true,
-        registered = {}, fontStrings = {}, log = {}, sent = {}, popups = {},
+        afk = false, combat = false, hp = 80, maxhp = 100, connected = true, hidesInCombat = false,
+        registered = {}, fontStrings = {}, textures = {}, log = {}, sent = {}, popups = {},
         -- Battle.net: how this player's game account looks in a friend's list
         gaid = 1000 + n, battleTag = first .. "#" .. (4000 + n), bnetChar = first, bnetRealm = last,
     }
@@ -180,6 +186,7 @@ local function newClient(first, last, zone)
     env.UIParent = uiObject(c, "Frame")
     env.GameTooltip = uiObject(c, "GameTooltip")
     env.RAID_CLASS_COLORS = { MAGE = { r = 0.25, g = 0.78, b = 0.92 }, PALADIN = { r = 0.96, g = 0.55, b = 0.73 } }
+    env.CLASS_ICON_TCOORDS = { MAGE = { 0.25, 0.49, 0, 0.25 }, PALADIN = { 0, 0.25, 0.5, 0.75 } }
     env.ACCEPT, env.DECLINE = "Accept", "Decline"
     env.StaticPopupDialogs = {}
     env.StaticPopup_Show = function(which, a1, a2, data)
@@ -254,8 +261,11 @@ local function newClient(first, last, zone)
     env.UnitIsGhost = function() return false end
     env.UnitIsDead = function() return false end
     env.IsResting = function() return false end
-    env.UnitHealth = function() return c.hp end
-    env.UnitHealthMax = function() return c.maxhp end
+    -- Some clients hand addons an opaque "secret value" instead of a real one mid-fight.
+    local SECRET = setmetatable({}, { __tostring = function() return "secret" end })
+    env.issecretvalue = function(v) return v == SECRET end
+    env.UnitHealth = function() if c.combat and c.hidesInCombat then return SECRET end return c.hp end
+    env.UnitHealthMax = function() if c.combat and c.hidesInCombat then return SECRET end return c.maxhp end
 
     c.env = env
     c.ns = {}
@@ -351,12 +361,22 @@ advance(3)
 check("zone change reaches Ally", panel(ally).line2 == "Westfall - Sentinel Hill", panel(ally).line2)
 check("mood reaches Ally", panel(ally).line3:find("come find me!", 1, true) ~= nil, panel(ally).line3)
 
--- Combat: no health sent, status says in combat
+-- Combat: health now goes out mid-fight on a client that allows it
 bram.combat = true
 fire(bram, "PLAYER_REGEN_DISABLED")
-advance(2)
+advance(3)
 check("combat status reaches Ally", panel(ally).line3:find("In combat", 1, true) ~= nil, panel(ally).line3)
-check("no health shared in combat", ally.ns.partnerState.status.hp == nil)
+check("health is shared in combat when the client allows it", ally.ns.partnerState.status.hp == 80, ally.ns.partnerState.status.hp)
+
+-- ...and is quietly withheld on a client that keeps combat values private
+bram.hidesInCombat = true
+bram.hp = 55
+fire(bram, "PLAYER_REGEN_DISABLED")
+advance(3)
+check("health is withheld when the client hides it", ally.ns.partnerState.status.hp == nil, ally.ns.partnerState.status.hp)
+check("and the rest of the status still arrives", panel(ally).line3:find("In combat", 1, true) ~= nil, panel(ally).line3)
+bram.hidesInCombat = false
+bram.hp = 80
 bram.combat = false
 fire(bram, "PLAYER_REGEN_ENABLED")
 
@@ -386,7 +406,9 @@ check("rejoining the group reconnects", ally.ns.partnerState.online == true)
 -- Hidden "No player named" message for our own background whispers
 group = {}
 for _, c in ipairs(clients) do fire(c, "GROUP_ROSTER_UPDATE") end
-advance(50) -- a heartbeat whisper goes out
+advance(50) -- let a heartbeat pass
+ally.ns.Status.SayHello() -- and make sure a background whisper has just gone out
+advance(2)
 local hidden = ally.chatFilter(nil, "CHAT_MSG_SYSTEM", "No player named 'Bram Stone' is currently playing.")
 check("not-found message for partner is hidden", hidden == true)
 check("...and marks them offline", ally.ns.partnerState.online == false)
@@ -401,8 +423,39 @@ ally.slash("demo")
 ally.slash("status")
 check("status command prints the link", logHas(ally, "Linked with Bram Stone"))
 ally.slash("")
-check("help lists commands", logHas(ally, "/partner link"))
+check("help lists commands", logHas(ally, "/pp link"))
+check("help still points at the long name", logHas(ally, "/partner"))
+check("help lists the themes", logHas(ally, "Coral, Storm"))
 ally.slash("hide"); ally.slash("show"); ally.slash("lock"); ally.slash("unlock"); ally.slash("reset")
+
+-- The card wears the partner's class, when the client has the class art
+local function iconOf(c)
+    return c.textures[1] and c.textures[1].texture
+end
+check("icon: shows Bram's class ring", (iconOf(ally) or ""):find("UI-Classes-Circles", 1, true) ~= nil, iconOf(ally))
+check("icon: falls back to the rune with no partner", (function()
+    local saved = cara.ns.db.partner
+    cara.ns.db.partner = nil
+    cara.ns.Panel.Render()
+    local tex = iconOf(cara)
+    cara.ns.db.partner = saved
+    return (tex or ""):find("INV_Misc_Rune_01", 1, true) ~= nil
+end)(), iconOf(cara))
+
+-- Themes
+check("theme: the default is coral", ally.ns.db.panel.theme == "coral", ally.ns.db.panel.theme)
+ally.slash("theme storm")
+check("theme: set by name", ally.ns.db.panel.theme == "storm", ally.ns.db.panel.theme)
+check("theme: it says which one", logHas(ally, "Theme set to"))
+ally.slash("theme WISTERIA")
+check("theme: the name is not case-sensitive", ally.ns.db.panel.theme == "wisteria", ally.ns.db.panel.theme)
+ally.slash("theme nonsense")
+check("theme: an unknown name changes nothing", ally.ns.db.panel.theme == "wisteria")
+check("theme: and says so", logHas(ally, "There is no theme called"))
+ally.slash("theme")
+check("theme: with no name it reports yours", logHas(ally, "Your theme is"))
+ally.slash("theme coral")
+check("theme: back to the default", ally.ns.db.panel.theme == "coral")
 
 -- Unlink (while grouped so the message arrives)
 group = { ally, bram }

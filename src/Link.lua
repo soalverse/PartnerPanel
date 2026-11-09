@@ -31,12 +31,12 @@ function Link.Request(name)
         return
     end
     if ns.SameName(name, ns.MyName()) then
-        ns.Print("That's you, silly! Pick someone else.")
+        ns.Print("That is you, silly! Pick someone else.")
         return
     end
     pending = { name = name }
     ns.Comm.Send(name, P.Encode("LINKREQ", ns.VERSION))
-    ns.Print("Asked %s to link up. They'll get a popup to accept.", name)
+    ns.Print("Asked %s to link up. They will get a popup to accept.", name)
     if not ns.FindGroupUnit(name) and not (ns.BNet and ns.BNet.Resolve(name)) then
         ns.Print("Tip: invite them to a group first. Outside a group, Partner Panel can only reach"
             .. " Battle.net friends.")
@@ -45,7 +45,7 @@ function Link.Request(name)
     C_Timer.After(REQUEST_TIMEOUT, function()
         if pending == request then
             pending = nil
-            ns.Print("No answer from %s. Check you're grouped together (or Battle.net friends)"
+            ns.Print("No answer from %s. Check you are grouped together (or Battle.net friends)"
                 .. " and they have Partner Panel enabled.", name)
         end
     end)
@@ -73,7 +73,7 @@ end
 function Link.Unlink()
     local partner = ns.db.partner
     if not partner then
-        ns.Print("You're not linked with anyone yet.")
+        ns.Print("You are not linked with anyone yet.")
         return
     end
     ns.Comm.Send(partner, P.Encode("UNLINK"))

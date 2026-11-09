@@ -56,11 +56,12 @@ function Status.Collect()
     f.dead = (not f.ghost and call(UnitIsDead, "player")) and true or nil
     f.resting = call(IsResting) and true or nil
 
-    if not f.combat then
-        local hp, max = call(UnitHealth, "player"), call(UnitHealthMax, "player")
-        if type(hp) == "number" and type(max) == "number" and max > 0 then
-            s.hp = hp / max * 100
-        end
+    -- Health, including mid-fight, which is when it matters most. On clients that keep
+    -- combat values private, `call` hands back nil and we simply send nothing, exactly
+    -- as before. So this asks for health in combat rather than assuming the answer is no.
+    local hp, max = call(UnitHealth, "player"), call(UnitHealthMax, "player")
+    if type(hp) == "number" and type(max) == "number" and max > 0 then
+        s.hp = hp / max * 100
     end
     s.mood = ns.db.mood or ""
     return s

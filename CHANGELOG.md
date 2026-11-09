@@ -1,13 +1,17 @@
 # Partner Panel changelog
 
-## v0.2.0 (coming soon)
+## v0.2.0 (2026-11-09)
 
 Your cards no longer need a group to stay live.
 
 - **Live updates through Battle.net:** if the two of you are Battle.net friends, your partner's zone, status, health and mood keep updating when you are not grouped, so one of you can be off in a raid with other people and the other can still see where they are. Your group is still used first whenever you are in one together.
-- **Linking without a group:** Battle.net friends can now link with `/partner link First Last` from anywhere.
-- **`/partner status`** now says which route your messages are taking, and whether Battle.net has found your partner.
+- **Linking without a group:** Battle.net friends can now link with `/pp link First Last` from anywhere.
+- **`/pp status`** now says which route your messages are taking, and whether Battle.net has found your partner.
 - **The card** says *Offline, or out of reach* when it cannot hear from your partner, and its tooltip shows how you are connected.
+- **A shorter way to type:** `/pp` now does everything `/partner` does, so linking is `/pp link` and a mood is `/pp mood be right back`. The longer names still work.
+- **Themes:** `/pp theme storm` repaints the card, with eight to choose from. Coral is the one you already have, and it stays the default.
+- **Your partner's class on the card,** on the icon, instead of the same hearthstone for everyone.
+- **The health bar** turns amber at half and red at a quarter, so you can see they are in trouble without reading anything. It also keeps going during a fight now, wherever WoW Forever allows it, which is exactly when you want it. Where it does not, the bar steps aside as before.
 
 ## v0.1.0 (2026-11-07)
 

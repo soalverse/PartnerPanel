@@ -71,7 +71,7 @@ local DEFAULTS = {
     -- partner = "First Last",   -- set once linked
     -- lastKnown = { zone, subzone, level, class, at },
     mood = "",
-    panel = { shown = true, locked = false },
+    panel = { shown = true, locked = false, theme = "coral" },
 }
 
 local function applyDefaults(t, d)
