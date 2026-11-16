@@ -1,6 +1,6 @@
 # Partner Panel changelog
 
-## v0.3.0
+## v0.3.0 (2026-11-16)
 
 Two new ways to talk without typing.
 
