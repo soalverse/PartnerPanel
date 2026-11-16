@@ -160,6 +160,7 @@ function Ping.Send(kind)
     endFollow()
     sendPing({ kind = kind, map = map, x = x, y = y, label = label })
     sent = { kind = kind, at = GetTime() }
+    ns.Fire("PINGED", "sent", kind, partner)
 
     if kind == "follow" then
         local started = GetTime()
@@ -282,6 +283,7 @@ local function announce(p)
     local where = zoneName(p.map)
     ns.Print("%s: %s%s", p.from, Ping.Text(p.kind, p.label), where and (" (" .. where .. ")") or "")
     ns.Sound("MAP_PING")
+    ns.Fire("PINGED", "received", p.kind, p.from)
 end
 
 ns.Listen("MESSAGE", function(kind, fields, from)

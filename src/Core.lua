@@ -108,6 +108,10 @@ ns.OnEvent("ADDON_LOADED", function(_, name)
     PartnerPanelCharDB = PartnerPanelCharDB or {}
     applyDefaults(PartnerPanelCharDB, DEFAULTS)
     ns.db = PartnerPanelCharDB
+    -- Shared by every character on the account: the partner journal lives here.
+    PartnerPanelDB = PartnerPanelDB or {}
+    applyDefaults(PartnerPanelDB, { journal = {} })
+    ns.accountDB = PartnerPanelDB
     ns.Fire("INIT")
 end)
 

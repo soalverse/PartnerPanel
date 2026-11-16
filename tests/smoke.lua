@@ -174,6 +174,7 @@ local function newClient(first, last, zone, opts)
     env.RegionalUniqueNamesEnabled = function() return true end
     env.GetTime = function() return now end
     env.time = function() return math.floor(now) end
+    env.date = os.date
     env.C_Timer = {
         After = function(d, fn) schedule(d, fn) end,
         NewTicker = function(i, fn)
@@ -333,18 +334,23 @@ local function newClient(first, last, zone, opts)
     env.UnitLevel = function() return c.level end
     env.UnitClass = function() return "Mage", c.class end
     env.GetRealZoneText = function() return c.zone end
+    env.GetInstanceInfo = function() return c.instanceName or c.zone, c.instanceType or "none" end
     env.GetSubZoneText = function() return c.subzone end
     env.UnitIsAFK = function() return c.afk end
     env.UnitIsDND = function() return false end
     env.UnitAffectingCombat = function() return c.combat end
-    env.UnitIsGhost = function() return false end
-    env.UnitIsDead = function() return false end
+    env.UnitIsGhost = function() return c.ghost == true end
+    env.UnitIsDead = function() return c.dead == true or c.ghost == true end
     env.IsResting = function() return false end
     -- Some clients hand addons an opaque "secret value" instead of a real one mid-fight.
     local SECRET = setmetatable({}, { __tostring = function() return "secret" end })
     env.issecretvalue = function(v) return v == SECRET end
     env.UnitHealth = function() if c.combat and c.hidesInCombat then return SECRET end return c.hp end
     env.UnitHealthMax = function() if c.combat and c.hidesInCombat then return SECRET end return c.maxhp end
+
+    -- Saved data from an earlier session, or shared with another character on the account.
+    env.PartnerPanelDB = opts.account
+    env.PartnerPanelCharDB = opts.charDB
 
     c.env = env
     c.ns = {}
@@ -992,6 +998,198 @@ advance(1)
 dana.slash("options")
 check("settings: without a settings window, it says where to look", logHas(dana, "Find the settings in Options"))
 check("settings: and the card still works", panel(dana).name == "No partner linked yet", panel(dana).name)
+
+---------------------------------------------------------------------------
+-- The partner journal
+---------------------------------------------------------------------------
+local function start(c)
+    fire(c, "ADDON_LOADED", "PartnerPanel")
+    fire(c, "PLAYER_LOGIN")
+end
+local function firsts(c, partner)
+    local p = c.ns.Journal.Page(partner)
+    local out = {}
+    for _, f in ipairs(p.firsts) do out[#out + 1] = f.text end
+    return out
+end
+local function hasFirst(c, partner, text)
+    for _, t in ipairs(firsts(c, partner)) do
+        if t == text then return true end
+    end
+    return false
+end
+local function countFirst(c, partner, text)
+    local n = 0
+    for _, t in ipairs(firsts(c, partner)) do
+        if t == text then n = n + 1 end
+    end
+    return n
+end
+
+local eve = newClient("Eve", "Hart", "Elwynn Forest")
+local finn = newClient("Finn", "Cole", "Elwynn Forest")
+start(eve)
+start(finn)
+advance(5)
+group = { eve, finn }
+roster()
+advance(1)
+link(eve, finn)
+advance(3)
+
+local page = eve.ns.Journal.Page("Finn Cole")
+check("journal: linking opens a page for the partner", page and #page.links == 1)
+check("journal: with the real link date", page.links[1].fromKnown == true and page.links[1].me == "Eve Hart")
+check("journal: being in the same zone is a first", hasFirst(eve, "Finn Cole", "First time in Elwynn Forest together"),
+    table.concat(firsts(eve, "Finn Cole"), " | "))
+check("journal: he gets it too, in his own journal", hasFirst(finn, "Eve Hart", "First time in Elwynn Forest together"))
+
+eve.zone = "Westfall"
+fire(eve, "ZONE_CHANGED_NEW_AREA")
+advance(3)
+check("journal: one of you alone in a zone is not a first", not hasFirst(eve, "Finn Cole", "First time in Westfall together"))
+finn.zone = "Westfall"
+fire(finn, "ZONE_CHANGED_NEW_AREA")
+advance(3)
+check("journal: both there is", hasFirst(eve, "Finn Cole", "First time in Westfall together"))
+fire(finn, "ZONE_CHANGED_NEW_AREA")
+advance(3)
+check("journal: and only once", countFirst(eve, "Finn Cole", "First time in Westfall together") == 1)
+
+for _, c in ipairs({ eve, finn }) do
+    c.zone, c.instanceName, c.instanceType = "The Deadmines", "The Deadmines", "party"
+    fire(c, "ZONE_CHANGED_NEW_AREA")
+end
+advance(3)
+check("journal: a dungeon together", hasFirst(eve, "Finn Cole", "First dungeon together: The Deadmines"))
+check("journal: a dungeon is not also a zone", not hasFirst(eve, "Finn Cole", "First time in The Deadmines together"))
+
+fire(eve, "BOSS_KILL", 639, "Edwin VanCleef")
+fire(eve, "ENCOUNTER_END", 639, "Edwin VanCleef", 1, 5, 1)
+fire(eve, "ENCOUNTER_END", 640, "Cookie", 1, 5, 0) -- a wipe
+check("journal: a boss together", hasFirst(eve, "Finn Cole", "Beat Edwin VanCleef together for the first time"))
+check("journal: told twice, written once", countFirst(eve, "Finn Cole", "Beat Edwin VanCleef together for the first time") == 1)
+check("journal: a wipe is not a win", not hasFirst(eve, "Finn Cole", "Beat Cookie together for the first time"))
+
+for _, c in ipairs({ eve, finn }) do
+    c.zone, c.instanceName, c.instanceType = "Westfall", nil, nil
+end
+eve.level = 20
+fire(eve, "PLAYER_LEVEL_UP", 20)
+finn.level = 20
+fire(finn, "PLAYER_LEVEL_UP", 20)
+advance(3)
+check("journal: your tenth levels", hasFirst(eve, "Finn Cole", "Eve Hart reached level 20"))
+check("journal: and theirs", hasFirst(eve, "Finn Cole", "Finn Cole reached level 20"),
+    table.concat(firsts(eve, "Finn Cole"), " | "))
+eve.level = 21
+fire(eve, "PLAYER_LEVEL_UP", 21)
+check("journal: only every tenth level", not hasFirst(eve, "Finn Cole", "Eve Hart reached level 21"))
+
+advance(2)
+eve.slash("ping come")
+advance(1)
+advance(2)
+finn.slash("ping watch")
+advance(1)
+check("journal: the first ping", hasFirst(eve, "Finn Cole", "First ping: Eve Hart sent Come here"))
+check("journal: only the first", not hasFirst(eve, "Finn Cole", "First ping: Finn Cole sent Watch out"))
+check("journal: his journal has the same first ping", hasFirst(finn, "Eve Hart", "First ping: Eve Hart sent Come here"))
+
+eve.slash("ask " .. LINK)
+advance(2)
+finn.env.PartnerPanelAsk.buttons.keep.scripts.OnClick()
+advance(2)
+check("journal: the first answer", hasFirst(eve, "Finn Cole", "First \"Should I keep this?\": Finn Cole said Keep"))
+check("journal: on his side too", hasFirst(finn, "Eve Hart", "First \"Should I keep this?\": Finn Cole said Keep"))
+
+eve.dead, finn.dead = true, true
+fire(eve, "PLAYER_DEAD")
+fire(finn, "PLAYER_DEAD")
+advance(3)
+check("journal: dying in the same fight", hasFirst(eve, "Finn Cole", "First time Eve Hart and Finn Cole died in the same fight"))
+eve.dead = false
+fire(eve, "PLAYER_ALIVE")
+finn.dead, finn.ghost = false, true
+fire(finn, "PLAYER_ALIVE")
+advance(3)
+check("journal: running back as a ghost", hasFirst(eve, "Finn Cole", "First time Finn Cole ran back as a ghost while Eve Hart waited"),
+    table.concat(firsts(eve, "Finn Cole"), " | "))
+finn.ghost = false
+fire(finn, "PLAYER_UNGHOST")
+
+advance(600)
+local together = page.links[1].together
+check("journal: counts time online together", together >= 540 and together <= 660, together)
+check("journal: and says it plainly", eve.ns.Journal.TogetherText(page):find("minutes online together", 1, true) ~= nil,
+    eve.ns.Journal.TogetherText(page))
+
+-- A new partner: Finn moves down the list, with his dates closed
+local gus = newClient("Gus", "Pike", "Westfall")
+start(gus)
+advance(5)
+group = { eve, gus }
+roster()
+advance(1)
+eve.slash("link Gus Pike")
+advance(1)
+gus.env.StaticPopupDialogs[gus.popups[#gus.popups].which].OnAccept(nil, gus.popups[#gus.popups].data)
+advance(5)
+check("journal: changing partner closes the old link", page.links[1].to ~= nil)
+local list, current = eve.ns.Journal.Partners()
+check("journal: the partner you have now comes first", list[1].name == "Gus Pike" and list[2].name == "Finn Cole",
+    list[1].name .. ", " .. (list[2] and list[2].name or "?"))
+check("journal: Finn's firsts are kept", #firsts(eve, "Finn Cole") >= 10, #firsts(eve, "Finn Cole"))
+check("journal: link dates read like a sentence", eve.ns.Journal.LinkText(page.links[1]):find("^On your mage Eve Hart, linked %d+ %a+ %d+ to %d+ %a+ %d+$") ~= nil,
+    eve.ns.Journal.LinkText(page.links[1]))
+
+eve.slash("journal")
+local shown = eve.ns.JournalFrame.Lines()
+check("journal: the window opens with /pp journal", eve.ns.JournalFrame.IsOpen())
+check("journal: current partner on top, marked as now", shown[1]:find("Gus Pike", 1, true) and shown[1]:find("your partner now", 1, true),
+    shown[1])
+local finnAt, westfallAt
+for i, t in ipairs(shown) do
+    if t:find("Finn Cole", 1, true) and not finnAt then finnAt = i end
+    if t:find("First time in Westfall together", 1, true) then westfallAt = i end
+end
+check("journal: then Finn, with his firsts under his name", finnAt and westfallAt and westfallAt > finnAt and finnAt > 1)
+check("journal: each first has its date", westfallAt and shown[westfallAt]:find("%d+ %a+ %d+") ~= nil, westfallAt and shown[westfallAt])
+
+local eveOpt = eve.ns.Options.controls
+eve.env.PartnerPanelJournal:Hide()
+eveOpt.journal.scripts.OnClick()
+check("journal: the settings page has a button for it", eve.ns.JournalFrame.IsOpen())
+
+-- A link from before the journal existed: honest about the missing date
+local hana = newClient("Hana", "Brook", "Duskwood", {
+    charDB = { partner = "Ivy Lane", mood = "", panel = { shown = true, locked = false, theme = "coral" } } })
+start(hana)
+local ivy = hana.ns.Journal.Page("Ivy Lane")
+check("journal: an older link is kept, with the date it is missing", ivy and ivy.links[1] and ivy.links[1].fromKnown == false)
+check("journal: and says so", hana.ns.Journal.LinkText(ivy.links[1]):find("linked since before", 1, true) ~= nil,
+    hana.ns.Journal.LinkText(ivy.links[1]))
+
+-- Two characters on one account share one journal
+local account = { journal = {} }
+local jade = newClient("Jade", "Moss", "Elwynn Forest", { account = account,
+    charDB = { partner = "Kim Ray", mood = "", panel = { shown = true, locked = false, theme = "coral" } } })
+start(jade)
+local lark = newClient("Lark", "Moss", "Elwynn Forest", { account = account,
+    charDB = { partner = "Max Oak", mood = "", panel = { shown = true, locked = false, theme = "coral" } } })
+start(lark)
+local larkList = lark.ns.Journal.Partners()
+check("journal: one journal across your characters", #larkList == 2)
+check("journal: the logged-in character's partner comes first", larkList[1].name == "Max Oak", larkList[1].name)
+local jadeList = jade.ns.Journal.Partners()
+check("journal: and on the other character, theirs does", jadeList[1].name == "Kim Ray", jadeList[1].name)
+check("journal: each link says which character it was", larkList[2].links[1].me == "Jade Moss")
+
+-- Nobody yet
+local nova = newClient("Nova", "Vale", "Elwynn Forest")
+start(nova)
+nova.slash("journal")
+check("journal: empty, it says what will appear", nova.ns.JournalFrame.Lines()[1]:find("Nothing here yet", 1, true) ~= nil)
 
 print(("%d passed, %d failed"):format(passed, failed))
 if failed > 0 then

@@ -20,6 +20,7 @@ local function help()
     print(w .. "  /pp show|r, " .. w .. "/pp hide|r - the partner panel")
     print(w .. "  /pp lock|r, " .. w .. "/pp unlock|r, " .. w .. "/pp reset|r - pin, free, or re-center the panel")
     print(w .. "  /pp options|r - the settings page: size, background, theme, sounds and more")
+    print(w .. "  /pp journal|r - your partner journal: your firsts together, and every partner you have had")
     print(w .. "  /pp demo|r - preview the panel with a pretend partner")
     print(w .. "  /pp status|r - connection details (handy when something is not working)")
 end
@@ -100,6 +101,8 @@ SlashCmdList.PARTNERPANEL = function(input)
         ns.Panel.ResetPosition()
     elseif cmd == "options" or cmd == "settings" or cmd == "config" then
         ns.Options.Open()
+    elseif cmd == "journal" then
+        ns.JournalFrame.Open()
     elseif cmd == "demo" then
         ns.Demo.Toggle()
     elseif cmd == "status" then

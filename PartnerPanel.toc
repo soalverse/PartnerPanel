@@ -5,6 +5,7 @@
 ## Version: 0.3.5
 ## X-Curse-Project-ID: 1789713
 ## IconTexture: Interface\Icons\INV_Misc_Rune_01
+## SavedVariables: PartnerPanelDB
 ## SavedVariablesPerCharacter: PartnerPanelCharDB
 
 src\Protocol.lua
@@ -18,5 +19,7 @@ src\Panel.lua
 src\Demo.lua
 src\Wheel.lua
 src\Keep.lua
+src\Journal.lua
+src\JournalFrame.lua
 src\Options.lua
 src\Commands.lua

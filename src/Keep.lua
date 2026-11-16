@@ -230,6 +230,7 @@ function Keep.Reply(word)
     if id and ns.db.partner and ns.SameName(ns.db.partner, asked.from) then
         ns.Comm.Send(asked.from, P.Encode("ANSWER", id, word))
         ns.Print("Told %s: %s %s.", asked.from, Keep.AnswerText(word), asked.link or "it")
+        ns.Fire("ANSWERED", "sent", word, asked.from)
     end
     showNext()
 end
@@ -253,6 +254,7 @@ ns.Listen("MESSAGE", function(kind, fields, from)
         if id and id > 0 and P.IsAnswer(word) then
             ns.db.answers = ns.db.answers or {}
             ns.db.answers[id] = { answer = word, from = from, at = time() }
+            ns.Fire("ANSWERED", "received", word, from)
             lookup("item:" .. id, function(link)
                 ns.Print("%s says %s for %s.", from, Keep.AnswerText(word), link or "that item")
             end)

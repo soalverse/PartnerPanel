@@ -100,6 +100,15 @@ local function create()
     local sub = label(frame, "GameFontHighlightSmall", "Everything here changes straight away. The /pp commands still work too.")
     sub:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
 
+    local journal = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    journal:SetSize(160, 24)
+    journal:SetPoint("TOPLEFT", frame, "TOPLEFT", 300, -18)
+    journal:SetText("Open the journal")
+    journal:SetScript("OnClick", function()
+        ns.JournalFrame.Open()
+    end)
+    controls.journal = journal
+
     -- The card
     local card = label(frame, "GameFontNormal", "The card")
     card:SetPoint("TOPLEFT", LEFT, -64)
