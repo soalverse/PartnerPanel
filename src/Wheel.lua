@@ -124,7 +124,7 @@ function Wheel.Open(how)
         b:SetBackdropColor(bg[1], bg[2], bg[3], 0.92)
         b:EnableMouse(mode == "click")
     end
-    hint:SetText(mode == "hold" and "Let go on an option to send it, or in the middle to cancel"
+    hint:SetText(mode == "hold" and "Let go of the key on an option to send it, or in the middle to cancel"
         or "Click an option to send it")
     highlight(nil)
     frame:ClearAllPoints()
@@ -143,19 +143,99 @@ function Wheel.IsOpen()
     return mode ~= nil
 end
 
--- Called by the key binding (Bindings.xml) on key down and key up.
+local function release()
+    local cx, cy = cursor()
+    local kind = Wheel.SliceAt(cx - originX, cy - originY)
+    Wheel.Close()
+    if kind then
+        ns.Ping.Send(kind)
+    end
+end
+
+-- Called on key down and key up. If a client only ever reports the key going down, a
+-- second press while the wheel is open sends instead, so the key still works.
 function PartnerPanel_PingKey(keystate)
     if keystate == "down" then
-        Wheel.Open("hold")
-    elseif mode == "hold" then
-        local cx, cy = cursor()
-        local kind = Wheel.SliceAt(cx - originX, cy - originY)
-        Wheel.Close()
-        if kind then
-            ns.Ping.Send(kind)
+        if mode == "hold" then
+            release()
+        else
+            Wheel.Open("hold")
         end
+    elseif mode == "hold" then
+        release()
     end
 end
 
 BINDING_HEADER_PARTNERPANEL = "Partner Panel"
 BINDING_NAME_PARTNERPANEL_PING = "Ping your partner (hold, point, let go)"
+
+---------------------------------------------------------------------------
+-- The ping key. v0.3.0 relied on Bindings.xml alone, and on WoW Forever its line never
+-- showed up in Keybindings. So the settings page binds the key itself, to this button.
+---------------------------------------------------------------------------
+local BUTTON = "PartnerPanelPingButton"
+local COMMAND = "CLICK " .. BUTTON .. ":LeftButton"
+
+local keyButton = CreateFrame("Button", BUTTON, UIParent)
+keyButton:RegisterForClicks("AnyDown", "AnyUp")
+keyButton:SetScript("OnClick", function(_, _, down)
+    PartnerPanel_PingKey(down == false and "up" or "down")
+end)
+
+local function call(fn, ...)
+    if not fn then
+        return nil
+    end
+    local ok, a, b = pcall(fn, ...)
+    if ok then
+        return a, b
+    end
+    return nil
+end
+
+-- The key that opens the wheel, set here or in Keybindings, or nil.
+function Wheel.GetKey()
+    return call(GetBindingKey, COMMAND) or call(GetBindingKey, "PARTNERPANEL_PING")
+end
+
+-- How a key reads to a person: "SHIFT-G" becomes whatever WoW calls it, "Shift-G".
+function Wheel.KeyText(key)
+    if not key then
+        return nil
+    end
+    return call(GetBindingText, key) or key
+end
+
+-- Makes `key` the ping key (nil clears it). Returns true, plus whatever the key did
+-- before; or false and why not.
+function Wheel.SetKey(key)
+    if not (SetBinding and SetBindingClick and GetBindingKey) then
+        return false, "unsupported"
+    end
+    if InCombatLockdown and InCombatLockdown() then
+        return false, "combat" -- WoW does not let addons change keys mid-fight
+    end
+    for _, command in ipairs({ COMMAND, "PARTNERPANEL_PING" }) do
+        local k1, k2 = call(GetBindingKey, command)
+        for _, k in ipairs({ k1, k2 }) do
+            if k then
+                call(SetBinding, k)
+            end
+        end
+    end
+    local before
+    if key then
+        before = call(GetBindingAction, key)
+        if before == "" then
+            before = nil
+        end
+        local ok, result = pcall(SetBindingClick, key, BUTTON, "LeftButton")
+        if not ok or result == false then
+            return false, "refused"
+        end
+    end
+    if SaveBindings then
+        call(SaveBindings, GetCurrentBindingSet and call(GetCurrentBindingSet) or 1)
+    end
+    return true, before
+end

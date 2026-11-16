@@ -281,9 +281,7 @@ end
 local function announce(p)
     local where = zoneName(p.map)
     ns.Print("%s: %s%s", p.from, Ping.Text(p.kind, p.label), where and (" (" .. where .. ")") or "")
-    if PlaySound and SOUNDKIT and SOUNDKIT.MAP_PING then
-        pcall(PlaySound, SOUNDKIT.MAP_PING)
-    end
+    ns.Sound("MAP_PING")
 end
 
 ns.Listen("MESSAGE", function(kind, fields, from)

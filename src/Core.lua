@@ -15,6 +15,17 @@ function ns.Print(fmt, ...)
     print(ns.TAG .. ": " .. text)
 end
 
+-- Plays one of WoW's built-in sounds by its SOUNDKIT name, unless sounds are off.
+function ns.Sound(name)
+    if ns.db and ns.db.sounds == false then
+        return
+    end
+    local id = SOUNDKIT and SOUNDKIT[name]
+    if id and PlaySound then
+        pcall(PlaySound, id)
+    end
+end
+
 -- Forever hides some values mid-combat ("secret values"); comparing one errors.
 function ns.IsSecret(v)
     return issecretvalue ~= nil and issecretvalue(v) or false
@@ -72,7 +83,9 @@ local DEFAULTS = {
     -- lastKnown = { zone, subzone, level, class, at },
     mood = "",
     answers = {}, -- [item id] = { answer = "keep", from = "First Last", at = time() }
-    panel = { shown = true, locked = false, theme = "coral" },
+    altAsk = true, -- Alt-click an item to ask about it
+    sounds = true, -- a sound when a ping or a question arrives
+    panel = { shown = true, locked = false, theme = "coral", scale = 1, alpha = 0.9 },
 }
 
 local function applyDefaults(t, d)

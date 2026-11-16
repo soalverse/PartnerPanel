@@ -62,6 +62,11 @@ local function uiObject(client, kind)
     function o:IsShown() return self.shown end
     function o:GetPoint() return "TOPLEFT", nil, "TOPLEFT", 24, -140 end
     function o:SetValue(v) self.value = v end
+    function o:GetValue() return self.value end
+    function o:SetChecked(v) self.checked = v and true or false end
+    function o:GetChecked() return self.checked == true end
+    function o:SetScale(v) self.scale = v end
+    function o:SetBackdropColor(r, g, b, a) self.bgColor = { r, g, b, a } end
     function o:SetTexture(t) self.texture = t end
     function o:SetStatusBarColor(r, g, b) self.barColor = { r, g, b } end
     function o:CreateTexture()
@@ -71,6 +76,7 @@ local function uiObject(client, kind)
     end
     function o:CreateFontString()
         local fs = uiObject(client, "FontString")
+        fs.owner = self
         table.insert(client.fontStrings, fs)
         return fs
     end
@@ -131,7 +137,8 @@ end
 ---------------------------------------------------------------------------
 -- A fake player running the addon
 ---------------------------------------------------------------------------
-local function newClient(first, last, zone)
+local function newClient(first, last, zone, opts)
+    opts = opts or {}
     local n = #clients + 1
     local c = {
         first = first, last = last, name = first .. " " .. last,
@@ -274,6 +281,37 @@ local function newClient(first, last, zone)
         local link = "|cffffffff|Hitem:" .. id .. "::::::::60:::::|h[" .. ITEMS[id] .. "]|h|r"
         return ITEMS[id], link, 1, 1, 0, "Misc", "Junk", 20, "", "Interface\\Icons\\Item" .. id
     end
+    -- The modern settings window (Forever has it; an older client might not).
+    if not opts.noSettings then
+        env.Settings = {
+            RegisterCanvasLayoutCategory = function(f) c.settingsFrame = f
+                return { ID = 42, GetID = function(self) return self.ID end } end,
+            RegisterAddOnCategory = function(cat) c.settingsCategory = cat end,
+            OpenToCategory = function(id) c.openedSettings = id end,
+        }
+    end
+    -- Key bindings: key -> command
+    c.bindings = { B = "OPENALLBAGS" }
+    env.GetBindingKey = function(command)
+        local found = {}
+        for k, cmd in pairs(c.bindings) do if cmd == command then found[#found + 1] = k end end
+        table.sort(found)
+        return found[1], found[2]
+    end
+    env.SetBinding = function(key, command) c.bindings[key] = command return true end
+    env.SetBindingClick = function(key, button, mouse)
+        c.bindings[key] = "CLICK " .. button .. ":" .. (mouse or "LeftButton") return true
+    end
+    env.GetBindingAction = function(key) return c.bindings[key] or "" end
+    env.GetCurrentBindingSet = function() return 2 end
+    env.SaveBindings = function(set) c.savedBindings = set end
+    env.GetBindingText = function(key) return (key:gsub("SHIFT%-", "Shift-")) end
+    env.InCombatLockdown = function() return c.lockdown == true end
+
+    c.sounds = {}
+    env.SOUNDKIT = { MAP_PING = 1, TELL_MESSAGE = 2 }
+    env.PlaySound = function(id) c.sounds[#c.sounds + 1] = id end
+
     -- Modified clicks on items all pass through HandleModifiedItemClick.
     c.hooks, c.keys, c.button = {}, {}, "LeftButton"
     env.HandleModifiedItemClick = function() return false end
@@ -321,8 +359,11 @@ local function newClient(first, last, zone)
 end
 
 local function panel(c)
-    -- created in order: level, name, line2, line3
-    local fs = c.fontStrings
+    -- the card's own text, created in order: level, name, line2, line3
+    local fs = {}
+    for _, f in ipairs(c.fontStrings) do
+        if f.owner == c.env.PartnerPanelFrame then fs[#fs + 1] = f end
+    end
     return { level = fs[1].text, name = fs[2].text, line2 = fs[3].text, line3 = fs[4].text }
 end
 
@@ -805,6 +846,152 @@ cara.ns.db.partner = nil
 cara.slash("ping come")
 cara.slash("ask " .. LINK)
 check("unlinked: ping and ask both point at /pp link", logCount(cara, "Link with your partner first") == 2)
+
+---------------------------------------------------------------------------
+-- The settings page, under Options > AddOns
+---------------------------------------------------------------------------
+local opt = ally.ns.Options.controls
+local card = ally.env.PartnerPanelFrame
+check("settings: the page is registered with the game", ally.settingsCategory ~= nil
+    and ally.settingsFrame == ally.env.PartnerPanelOptions)
+ally.slash("options")
+check("settings: /pp options opens it", ally.openedSettings == 42, ally.openedSettings)
+
+ally.ns.Options.Refresh()
+check("settings: boxes start out matching the saved settings", opt.shown:GetChecked() and not opt.locked:GetChecked()
+    and opt.altAsk:GetChecked() and opt.sounds:GetChecked())
+check("settings: sliders start at 100% size and 90% background", opt.scale.valueText.text == "100%"
+    and opt.alpha.valueText.text == "90%", opt.scale.valueText.text .. " " .. opt.alpha.valueText.text)
+
+local function click(cb, value)
+    cb:SetChecked(value)
+    cb.scripts.OnClick(cb)
+end
+click(opt.locked, true)
+check("settings: Lock it in place", ally.ns.db.panel.locked == true)
+click(opt.shown, false)
+check("settings: Show the card, off, hides it", ally.ns.db.panel.shown == false and not card.shown)
+click(opt.shown, true)
+check("settings: and on brings it back", ally.ns.db.panel.shown == true and card.shown)
+
+opt.scale.scripts.OnValueChanged(opt.scale, 1.23)
+check("settings: Size snaps to a step and resizes the card", ally.ns.db.panel.scale == 1.25 and card.scale == 1.25,
+    tostring(ally.ns.db.panel.scale) .. " " .. tostring(card.scale))
+check("settings: and shows it as a percentage", opt.scale.valueText.text == "125%", opt.scale.valueText.text)
+opt.alpha.scripts.OnValueChanged(opt.alpha, 0.5)
+check("settings: Background fades the card", card.bgColor and math.abs(card.bgColor[4] - 0.5) < 0.001,
+    card.bgColor and card.bgColor[4])
+ally.ns.Panel.SetScale(9)
+check("settings: a silly size is kept within limits", ally.ns.db.panel.scale == ally.ns.Panel.SCALE_MAX)
+
+opt.themes.storm.scripts.OnClick()
+check("settings: a theme swatch sets the theme", ally.ns.db.panel.theme == "storm")
+check("settings: and the page says which", opt.themeLabel.text == "Theme: Storm", opt.themeLabel.text)
+ally.slash("theme ember")
+ally.ns.Options.Refresh()
+check("settings: a /pp change shows on the page", opt.themeLabel.text == "Theme: Ember", opt.themeLabel.text)
+
+click(opt.altAsk, false)
+asks = asksSent()
+ally.keys.alt = true
+altClick(ally, LINK)
+ally.keys.alt = false
+advance(2)
+check("settings: with Alt-click off, Alt-click asks nothing", asksSent() == asks)
+click(opt.altAsk, true)
+
+local heard = #bram.sounds
+advance(2)
+ally.slash("ping come")
+advance(1)
+check("settings: a ping plays a sound", #bram.sounds == heard + 1)
+bram.ns.db.sounds = false
+advance(2)
+ally.slash("ping grab")
+advance(1)
+check("settings: and stays quiet with sounds off", #bram.sounds == heard + 1)
+bram.ns.db.sounds = true
+
+ally.settingsFrame.OnDefault()
+check("settings: Defaults puts everything back", ally.ns.db.panel.theme == "coral" and ally.ns.db.panel.scale == 1
+    and math.abs(ally.ns.db.panel.alpha - 0.9) < 0.001 and ally.ns.db.panel.locked == false
+    and ally.ns.db.altAsk == true and ally.ns.db.sounds == true and card.scale == 1)
+
+-- The ping key, set from the settings page
+local PING = "CLICK PartnerPanelPingButton:LeftButton"
+local keyBtn, capture = opt.pingKey, opt.keyCapture
+ally.ns.Options.Refresh()
+check("key: starts out not set", keyBtn.text == "Not set", keyBtn.text)
+keyBtn.scripts.OnClick(keyBtn, "LeftButton")
+check("key: clicking it waits for a key", keyBtn.text == "Press a key...", keyBtn.text)
+capture.scripts.OnKeyDown(capture, "G")
+check("key: pressing G makes G the ping key", ally.bindings.G == PING, ally.bindings.G)
+check("key: and saves it", ally.savedBindings == 2)
+check("key: the button shows it", keyBtn.text == "G", keyBtn.text)
+check("key: and chat confirms it", logHas(ally, "Your ping key is now |cffffffffG|r."))
+
+keyBtn.scripts.OnClick(keyBtn, "LeftButton")
+ally.keys.shift = true
+capture.scripts.OnKeyDown(capture, "LSHIFT") -- the Shift key on its own is not a choice yet
+capture.scripts.OnKeyDown(capture, "G")
+ally.keys.shift = false
+check("key: Shift + G works", ally.bindings["SHIFT-G"] == PING, ally.bindings["SHIFT-G"])
+check("key: and the old G is let go", ally.bindings.G == nil, ally.bindings.G)
+check("key: shown the way WoW writes it", keyBtn.text == "Shift-G", keyBtn.text)
+
+keyBtn.scripts.OnClick(keyBtn, "LeftButton")
+capture.scripts.OnKeyDown(capture, "ESCAPE")
+check("key: Escape changes nothing", ally.bindings["SHIFT-G"] == PING and keyBtn.text == "Shift-G")
+
+keyBtn.scripts.OnClick(keyBtn, "LeftButton")
+capture.scripts.OnKeyDown(capture, "B")
+check("key: taking a key that did something else", ally.bindings.B == PING)
+check("key: says what it used to do", logHas(ally, "used to do something else (OPENALLBAGS)"))
+
+ally.lockdown = true
+keyBtn.scripts.OnClick(keyBtn, "LeftButton")
+capture.scripts.OnKeyDown(capture, "H")
+ally.lockdown = false
+check("key: mid-fight it explains and changes nothing", ally.bindings.H == nil and ally.bindings.B == PING
+    and logHas(ally, "during a fight"))
+
+ally.bindings.J = "PARTNERPANEL_PING" -- one set through Keybindings, if that ever shows up
+keyBtn.scripts.OnClick(keyBtn, "RightButton")
+check("key: right-click clears it, wherever it was set", ally.bindings.B == nil and ally.bindings.J == nil)
+check("key: and the button says so", keyBtn.text == "Not set", keyBtn.text)
+
+-- The key itself: hold, point, let go
+local pingBtn = ally.env.PartnerPanelPingButton
+advance(2)
+ally.cursorX, ally.cursorY = 500, 500
+pingBtn.scripts.OnClick(pingBtn, "LeftButton", true)
+check("key: pressing it opens the wheel", ally.ns.Wheel.IsOpen())
+ally.cursorX = 600 -- right is between Follow me and Grab this; up-right is Follow me
+ally.cursorY = 530
+pingBtn.scripts.OnClick(pingBtn, "LeftButton", false)
+advance(1)
+check("key: letting go sends what you pointed at", not ally.ns.Wheel.IsOpen()
+    and bram.ns.Ping.Current() and bram.ns.Ping.Current().kind == "follow",
+    bram.ns.Ping.Current() and bram.ns.Ping.Current().kind)
+ally.slash("ping stop")
+
+advance(2)
+ally.cursorX, ally.cursorY = 500, 500
+pingBtn.scripts.OnClick(pingBtn, "LeftButton") -- a client that never says "let go"
+ally.cursorY = 400
+pingBtn.scripts.OnClick(pingBtn, "LeftButton")
+advance(1)
+check("key: where let go never arrives, a second press sends", not ally.ns.Wheel.IsOpen()
+    and bram.ns.Ping.Current() and bram.ns.Ping.Current().kind ~= "follow")
+
+-- A client with no settings window: no errors, and /pp options says where to look
+local dana = newClient("Dana", "Reed", "Elwynn Forest", { noSettings = true })
+fire(dana, "ADDON_LOADED", "PartnerPanel")
+fire(dana, "PLAYER_LOGIN")
+advance(1)
+dana.slash("options")
+check("settings: without a settings window, it says where to look", logHas(dana, "Find the settings in Options"))
+check("settings: and the card still works", panel(dana).name == "No partner linked yet", panel(dana).name)
 
 print(("%d passed, %d failed"):format(passed, failed))
 if failed > 0 then

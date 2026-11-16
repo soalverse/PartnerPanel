@@ -1,5 +1,13 @@
 # Partner Panel changelog
 
+## v0.3.5 (2026-11-16)
+
+A settings page, and a ping key you can actually find.
+
+- **The ping key:** in v0.3.0 it was meant to sit in Keybindings, and on WoW Forever it never showed up there. Now you set it on Partner Panel's own settings page: click the button and press the key you want.
+- **Settings:** Partner Panel has a page in Options, under AddOns, and `/pp options` takes you there. Show and lock the card, make it bigger or smaller, fade its background, pick a theme, and switch off Alt-click asking or the sounds.
+- **Card size and background** are new, and saved for each character, like your theme.
+
 ## v0.3.0 (2026-11-16)
 
 Two new ways to talk without typing.

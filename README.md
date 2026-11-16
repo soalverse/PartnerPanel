@@ -38,10 +38,13 @@ Hold your ping key, point at one of five options, and let go. Your partner gets 
 - **Watch out,** with the name of whatever you are pointing at (*Watch out: Hogger*)
 - **Grab this,** for the chest, the herb, or the quest item they are about to walk straight past
 
-When they reach the pin, it clears itself and tells you they made it. The pin always lands on the floor under you, not under your mouse, because WoW keeps that spot for its own pings, and it does not work inside dungeons, where WoW keeps your position to itself. Set your key in Key Bindings, under Partner Panel, or type `/pp ping` to click instead.
+When they reach the pin, it clears itself and tells you they made it. The pin always lands on the floor under you, not under your mouse, because WoW keeps that spot for its own pings, and it does not work inside dungeons, where WoW keeps your position to itself. Set your key in the settings (type `/pp options`), or type `/pp ping` to click instead.
 
 ### Should I keep this?
 Hold Alt and click an item in your bags. Your partner gets a little window with the item and four buttons, Equip, Sell, Keep and Bank. Their answer lands in your chat and stays on that item's tooltip from then on, so nobody has to ask about the same grey sword twice. If another addon already uses Alt-click, type `/pp ask`, shift-click the item, and press Enter instead.
+
+### Settings
+Partner Panel has its own page in the game's Options, under AddOns, or type `/pp options` to jump straight there. It keeps everything in one place: your ping key, showing or locking the card, putting it back where it started, making it bigger or smaller, fading its background, picking a theme from eight little swatches, and switching off Alt-click asking or the sounds. Everything changes the moment you click it, and the `/pp` commands still work alongside it.
 
 ### Linking
 Group up, type `/pp link`, and your partner gets a popup asking whether they would like to link with you. It is a very polite popup. If the two of you are Battle.net friends, you do not need the group at all, and `/pp link First Last` reaches them wherever they happen to be standing. Your link is remembered after that, grouped or not, and the card goes live on its own (more on that in [Your link and the live connection](#your-link-and-the-live-connection)).
@@ -84,11 +87,12 @@ These are two different parts of Partner Panel, and neither of them needs you to
 | `/pp mood <text>` | Sets the short message your partner sees. `/pp mood` on its own clears it. |
 | `/pp show` and `/pp hide` | Shows or hides the card |
 | `/pp lock` and `/pp unlock` | Pins the card in place, or lets you drag it again |
-| `/pp ping` | Opens the ping wheel to click. For the hold, point and let go version, set a key in Key Bindings, under Partner Panel. |
+| `/pp ping` | Opens the ping wheel to click. For the hold, point and let go version, set a key in `/pp options`. |
 | `/pp ping stop` | Stops sharing where you are, after Follow me |
 | `/pp ask` | Asks your partner about an item, for when Alt-click is busy. Type `/pp ask`, shift-click the item, and press Enter. |
 | `/pp theme <name>` | Repaints the card. Coral, Storm, Tempest, Ember, Sunset, Sunlit, Wisteria or Fogbank. `/pp theme` on its own lists them. |
 | `/pp reset` | Puts the card back in its starting spot |
+| `/pp options` | Opens the settings page |
 | `/pp demo` | Shows the card with a pretend partner |
 | `/pp status` | Shows the connection details, including which road your messages are taking, for when something is not working |
 | `/pp` | Lists every command |

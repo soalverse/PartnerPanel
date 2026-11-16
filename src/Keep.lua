@@ -80,6 +80,9 @@ end
 local lastAlt = { item = nil, at = 0 }
 
 function Keep.OnModifiedClick(link)
+    if ns.db and ns.db.altAsk == false then
+        return -- switched off in the settings, for when another addon wants Alt-click
+    end
     if not (IsAltKeyDown and IsAltKeyDown()) or (IsShiftKeyDown and IsShiftKeyDown())
         or (IsControlKeyDown and IsControlKeyDown()) then
         return
@@ -206,9 +209,7 @@ function showNext()
             frame.icon:SetTexture(texture)
         end
     end)
-    if PlaySound and SOUNDKIT and SOUNDKIT.TELL_MESSAGE then
-        pcall(PlaySound, SOUNDKIT.TELL_MESSAGE)
-    end
+    ns.Sound("TELL_MESSAGE")
 end
 
 function Keep.Waiting()

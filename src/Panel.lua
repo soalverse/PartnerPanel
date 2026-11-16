@@ -54,9 +54,27 @@ function Panel.SetTheme(name)
 end
 
 -- The theme's accent and background colours, for the other windows to match the card.
-function Panel.Colors()
-    local t = theme()
-    return t.accent, t.bg
+-- With a key, that theme's; without one, the theme in use.
+function Panel.Colors(key)
+    local t = (key and THEMES[key]) or theme()
+    return t.accent, t.bg, t.label
+end
+
+-- Theme keys, in the order they are offered.
+function Panel.ThemeKeys()
+    local out = {}
+    for i, key in ipairs(THEME_ORDER) do
+        out[i] = key
+    end
+    return out
+end
+
+Panel.SCALE_MIN, Panel.SCALE_MAX = 0.6, 1.6
+Panel.ALPHA_MIN, Panel.ALPHA_MAX = 0.2, 1
+
+local function clamp(v, lo, hi, default)
+    v = tonumber(v) or default
+    return math.max(lo, math.min(hi, v))
 end
 
 function Panel.ApplyTheme()
@@ -64,8 +82,21 @@ function Panel.ApplyTheme()
         return
     end
     local t = theme()
-    frame:SetBackdropColor(t.bg[1], t.bg[2], t.bg[3], 0.9)
+    local alpha = clamp(ns.db.panel.alpha, Panel.ALPHA_MIN, Panel.ALPHA_MAX, 0.9)
+    frame:SetBackdropColor(t.bg[1], t.bg[2], t.bg[3], alpha)
     frame:SetBackdropBorderColor(t.accent[1], t.accent[2], t.accent[3], 0.9)
+end
+
+function Panel.SetAlpha(v)
+    ns.db.panel.alpha = clamp(v, Panel.ALPHA_MIN, Panel.ALPHA_MAX, 0.9)
+    Panel.ApplyTheme()
+end
+
+function Panel.SetScale(v)
+    ns.db.panel.scale = clamp(v, Panel.SCALE_MIN, Panel.SCALE_MAX, 1)
+    if frame then
+        frame:SetScale(ns.db.panel.scale)
+    end
 end
 
 local function classColor(classFile)
@@ -296,6 +327,7 @@ local function create()
         GameTooltip:Hide()
     end)
 
+    Panel.SetScale(ns.db.panel.scale)
     restorePosition()
     frame:SetShown(ns.db.panel.shown)
     Panel.Render()
