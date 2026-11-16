@@ -11,6 +11,11 @@ local function help()
     print(w .. "  /pp link|r [First Last] - link with your partner (no name = your target, or the one other person in your party)")
     print(w .. "  /pp unlink|r - undo the link")
     print(w .. "  /pp mood|r <text> - a little message your partner sees (no text clears it)")
+    print(w .. "  /pp ping|r - the ping wheel (Stand here, Come here, Follow me, Watch out, Grab this)."
+        .. " Bind a key to it in Key Bindings, under Partner Panel, to hold, point and let go")
+    print(w .. "  /pp ping stop|r - stop sharing where you are after Follow me")
+    print(w .. "  Alt-click|r an item in your bags, or " .. w .. "/pp ask|r <shift-click an item>"
+        .. " - ask your partner: Equip, Sell, Keep or Bank?")
     print(w .. "  /pp theme|r <name> - the panel's colours: " .. themeList())
     print(w .. "  /pp show|r, " .. w .. "/pp hide|r - the partner panel")
     print(w .. "  /pp lock|r, " .. w .. "/pp unlock|r, " .. w .. "/pp reset|r - pin, free, or re-center the panel")
@@ -57,6 +62,17 @@ SlashCmdList.PARTNERPANEL = function(input)
         else
             ns.Print("Mood set: \"%s\"", mood)
         end
+    elseif cmd == "ping" then
+        local kind = rest:lower()
+        if kind == "" then
+            ns.Wheel.Open("click")
+        elseif kind == "stop" or ns.Ping.LABELS[kind] then
+            ns.Ping.Send(kind)
+        else
+            ns.Print("Try |cffffffff/pp ping|r on its own for the wheel, or one of: stand, come, follow, watch, grab, stop.")
+        end
+    elseif cmd == "ask" then
+        ns.Keep.Ask(rest)
     elseif cmd == "show" then
         ns.Panel.Show()
     elseif cmd == "hide" then

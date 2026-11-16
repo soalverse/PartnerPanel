@@ -181,6 +181,78 @@ test("worst-case Battle.net status fits in one message", function()
     assert(#msg <= P.MAX_LEN, "message is " .. #msg .. " bytes")
 end)
 
+-- Pings
+test("ping round trip keeps the spot to a hair", function()
+    local kind, fields = P.Decode(P.EncodePing({ kind = "come", map = 1453, x = 0.66785669, y = 0.72329741 }))
+    eq(kind, "PING")
+    local p = P.DecodePing(fields)
+    eq(p.kind, "come")
+    eq(p.map, 1453)
+    assert(math.abs(p.x - 0.66785669) < 0.0001 and math.abs(p.y - 0.72329741) < 0.0001, p.x .. "," .. p.y)
+    eq(p.label, nil)
+end)
+
+test("ping carries a label, cleaned and capped", function()
+    local _, fields = P.Decode(P.EncodePing({ kind = "watch", map = 1, x = 0.5, y = 0.5,
+        label = "Hogger|r\t" .. string.rep("x", 100) }))
+    local p = P.DecodePing(fields)
+    eq(p.label:sub(1, 8), "Hogger r")
+    assert(#p.label <= P.LABEL_MAX, #p.label)
+end)
+
+test("ping stop needs no place", function()
+    local _, fields = P.Decode(P.EncodePing({ kind = "stop" }))
+    eq(P.DecodePing(fields).kind, "stop")
+end)
+
+test("ping rejects unknown kinds and bad places", function()
+    eq(P.DecodePing({ "dance", "1", "5000", "5000" }), nil)
+    eq(P.DecodePing({ "come", "", "5000", "5000" }), nil)
+    eq(P.DecodePing({ "come", "0", "5000", "5000" }), nil)
+    eq(P.DecodePing({ "come", "1", "-1", "5000" }), nil)
+    eq(P.DecodePing({ "come", "1", "5000", "10001" }), nil)
+    eq(P.DecodePing({}), nil)
+end)
+
+test("ping spot off the map edge is pulled back onto it", function()
+    local _, fields = P.Decode(P.EncodePing({ kind = "come", map = 1, x = 1.5, y = -0.2 }))
+    local p = P.DecodePing(fields)
+    eq(p.x, 1)
+    eq(p.y, 0)
+end)
+
+test("worst-case Battle.net ping fits in one message", function()
+    local msg = P.WrapBNet(string.rep("N", 30), string.rep("F", 30),
+        P.EncodePing({ kind = "follow", map = 99999, x = 0.123456, y = 0.654321, label = string.rep("L", 100) }))
+    assert(#msg <= P.MAX_LEN, "message is " .. #msg .. " bytes")
+end)
+
+-- "Should I keep this?"
+test("item string comes out of a full item link", function()
+    local link = "|cffffffff|Hitem:19422::::::::60:::::|h[Darkmoon Faire Fortune]|h|r"
+    eq(P.ItemString(link), "item:19422::::::::60")
+    eq(P.ItemID(P.ItemString(link)), 19422)
+end)
+
+test("item string survives the trip, links do not", function()
+    local item = P.ItemString("|Hitem:12345:0:0:0|h[Sword]|h")
+    local _, fields = P.Decode(P.Encode("ASK", item))
+    eq(fields[1], "item:12345:0:0:0")
+    eq(P.ItemID(fields[1]), 12345)
+end)
+
+test("item string rejects text with no item in it", function()
+    eq(P.ItemString("just some words"), nil)
+    eq(P.ItemString(nil), nil)
+    eq(P.ItemString("item:"), nil)
+    eq(P.ItemID("item:0"), nil)
+end)
+
+test("only the four answers are answers", function()
+    assert(P.IsAnswer("equip") and P.IsAnswer("sell") and P.IsAnswer("keep") and P.IsAnswer("bank"))
+    assert(not P.IsAnswer("Keep") and not P.IsAnswer("eat") and not P.IsAnswer(nil))
+end)
+
 print(("%d passed, %d failed"):format(passed, failed))
 if failed > 0 then
     os.exit(1)

@@ -119,6 +119,7 @@ function ns.GetPartnerView()
         via = partner.via,
         grouped = ns.FindGroupUnit(name) ~= nil,
         lastKnown = ns.db.lastKnown,
+        ping = ns.Ping and ns.Ping.Current(),
     }
 end
 

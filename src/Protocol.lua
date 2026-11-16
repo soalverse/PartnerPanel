@@ -199,6 +199,78 @@ function P.EncodeStatus(s)
         P.Clean(s.mood, P.MOOD_MAX))
 end
 
+-- PING fields: kind, map id, x, y (whole numbers out of 10000), label.
+-- "stop" ends a "follow"; it carries no place.
+P.PING_KINDS = { "stand", "come", "follow", "watch", "grab" }
+local PING_KIND = { stop = true }
+for _, k in ipairs(P.PING_KINDS) do
+    PING_KIND[k] = true
+end
+P.LABEL_MAX = 40
+
+local function toGrid(v)
+    return math.floor(math.max(0, math.min(1, v)) * 10000 + 0.5)
+end
+
+function P.EncodePing(p)
+    if p.kind == "stop" then
+        return P.Encode("PING", "stop")
+    end
+    return P.Encode("PING", p.kind, p.map, toGrid(p.x), toGrid(p.y), P.Clean(p.label, P.LABEL_MAX))
+end
+
+-- Returns the ping, or nil if it is not one we understand.
+function P.DecodePing(fields)
+    local kind = fields[1]
+    if not PING_KIND[kind] then
+        return nil
+    end
+    if kind == "stop" then
+        return { kind = "stop" }
+    end
+    local map, x, y = tonumber(fields[2]), tonumber(fields[3]), tonumber(fields[4])
+    if not (map and x and y) or map <= 0 or x < 0 or x > 10000 or y < 0 or y > 10000 then
+        return nil
+    end
+    local label = P.Clean(fields[5], P.LABEL_MAX)
+    return { kind = kind, map = math.floor(map), x = x / 10000, y = y / 10000, label = label ~= "" and label or nil }
+end
+
+-- "Should I keep this?" Item links are built from "|" characters, which Clean strips,
+-- so what travels is the plain item string inside the link: "item:19422:0:0:0...".
+P.ANSWERS = { "equip", "sell", "keep", "bank" }
+local ANSWER = {}
+for _, a in ipairs(P.ANSWERS) do
+    ANSWER[a] = true
+end
+
+function P.ItemString(text)
+    if type(text) ~= "string" then
+        return nil
+    end
+    local s = text:match("(item:[%-%d:]+)")
+    if not s then
+        return nil
+    end
+    s = s:gsub(":+$", "")
+    if not s:match("^item:%d+") or #s > 120 then
+        return nil
+    end
+    return s
+end
+
+function P.ItemID(itemString)
+    local id = type(itemString) == "string" and tonumber(itemString:match("^item:(%d+)"))
+    if id and id > 0 then
+        return id
+    end
+    return nil
+end
+
+function P.IsAnswer(word)
+    return ANSWER[word] == true
+end
+
 function P.DecodeStatus(fields)
     local hp = tonumber(fields[6])
     if hp then

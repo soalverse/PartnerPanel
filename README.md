@@ -18,7 +18,7 @@ The panel is a small card you can drag anywhere on your screen, and this little 
 - **Your partner's name and level,** in their class colour, with their class on the icon beside it
 - **Where they are,** down to the subzone (*Westfall, Sentinel Hill*)
 - **What they are up to:** online, AFK, busy, in combat, resting, dead, or a ghost, which is dead with better posture
-- **Their health,** as a bar that turns amber at half and red at a quarter, and now keeps going during a fight, which is when you most want it. If WoW Forever keeps their health private mid-fight, the bar politely steps aside instead, exactly as it used to.
+- **Their health,** as a bar that turns amber at half and red at a quarter. WoW Forever keeps health private during a fight, so the bar steps aside until it is over, and the card says *In combat* instead.
 - **Where you last saw them,** once they log off or go out of reach (*Last seen in Westfall, 5m ago*)
 
 <p align="center"><img src="docs/panel.png" alt="The Partner Panel card, showing Mana Buffet at level 13, resting in the Trade District of Stormwind City" width="330"></p>
@@ -28,6 +28,20 @@ The panel is a small card you can drag anywhere on your screen, and this little 
 
 ### Moods
 `/pp mood` leaves a short message on your partner's card, up to 60 characters, and it stays there until you change it. Use it for *"brb, snacks,"* *"come find me,"* or *"I have made a terrible mistake in this cave."*
+
+### Pings
+Hold your ping key, point at one of five options, and let go. Your partner gets a pin on their map and an arrow on their screen, right where you were standing.
+
+- **Stand here,** for when you want them on one particular spot
+- **Come here,** for when you would like some company
+- **Follow me,** which keeps the pin moving with you for three minutes, so they can catch up while you keep walking
+- **Watch out,** with the name of whatever you are pointing at (*Watch out: Hogger*)
+- **Grab this,** for the chest, the herb, or the quest item they are about to walk straight past
+
+When they reach the pin, it clears itself and tells you they made it. The pin always lands on the floor under you, not under your mouse, because WoW keeps that spot for its own pings, and it does not work inside dungeons, where WoW keeps your position to itself. Set your key in Key Bindings, under Partner Panel, or type `/pp ping` to click instead.
+
+### Should I keep this?
+Hold Alt and click an item in your bags. Your partner gets a little window with the item and four buttons, Equip, Sell, Keep and Bank. Their answer lands in your chat and stays on that item's tooltip from then on, so nobody has to ask about the same grey sword twice. If another addon already uses Alt-click, type `/pp ask`, shift-click the item, and press Enter instead.
 
 ### Linking
 Group up, type `/pp link`, and your partner gets a popup asking whether they would like to link with you. It is a very polite popup. If the two of you are Battle.net friends, you do not need the group at all, and `/pp link First Last` reaches them wherever they happen to be standing. Your link is remembered after that, grouped or not, and the card goes live on its own (more on that in [Your link and the live connection](#your-link-and-the-live-connection)).
@@ -53,9 +67,9 @@ These are two different parts of Partner Panel, and neither of them needs you to
 
 **Your link is remembered all the time.** Once you have linked, Partner Panel saves it for that character, and it stays saved whether you are grouped or not, through logging out, and through restarting the game. The card stays on your screen with your partner's name on it, and you only need to link again if one of you types `/pp unlink`.
 
-**Live updates follow you out of the group.** Your partner's zone, status, health and mood keep changing on your card for as long as your two copies of Partner Panel can reach each other. While you are grouped, they talk over the group channel, which is the shortest and surest road. When you leave the group, Battle.net quietly takes over, so one of you can be off in a raid with other people and the other can still see where they are and what their mood says. There is nothing new to type and nothing to set up, as long as the two of you are Battle.net friends and you are both logged into WoW.
+**Live updates follow you out of the group.** Your partner's zone, status, health and mood keep changing on your card for as long as your two copies of Partner Panel can reach each other. While you are grouped, they talk over the group channel, which is the shortest and surest road. When you leave the group, Battle.net takes over, so one of you can be off in a raid with other people and the other can still see where they are and what their mood says. There is nothing new to type and nothing to set up, as long as the two of you are Battle.net friends and you are both logged into WoW.
 
-**When neither road is open,** which is to say you are not grouped, and you are not Battle.net friends, or they have simply logged off, the card keeps the last update it heard, *Last seen in Westfall, 5m ago*, a bit like a photo on the fridge, and says *Offline, or out of reach*. It reconnects on its own within a few seconds of you grouping up, or of them coming back online.
+**When neither road is open,** which is to say you are not grouped, and you are not Battle.net friends, or they have logged off, the card keeps the last update it heard, *Last seen in Westfall, 5m ago*, a bit like a photo on the fridge, and says *Offline, or out of reach*. It reconnects on its own within a few seconds of you grouping up, or of them coming back online.
 
 **Linking by name is for when the short version cannot guess.** Plain `/pp link` works out who you mean from your target, or from the one other person in a two-person party. In a bigger party or a raid, it cannot tell which person you mean, so type their whole name instead, `/pp link First Last`. That longer form is also how you link with no group at all, from opposite ends of the world, if the two of you are Battle.net friends.
 
@@ -70,6 +84,9 @@ These are two different parts of Partner Panel, and neither of them needs you to
 | `/pp mood <text>` | Sets the short message your partner sees. `/pp mood` on its own clears it. |
 | `/pp show` and `/pp hide` | Shows or hides the card |
 | `/pp lock` and `/pp unlock` | Pins the card in place, or lets you drag it again |
+| `/pp ping` | Opens the ping wheel to click. For the hold, point and let go version, set a key in Key Bindings, under Partner Panel. |
+| `/pp ping stop` | Stops sharing where you are, after Follow me |
+| `/pp ask` | Asks your partner about an item, for when Alt-click is busy. Type `/pp ask`, shift-click the item, and press Enter. |
 | `/pp theme <name>` | Repaints the card. Coral, Storm, Tempest, Ember, Sunset, Sunlit, Wisteria or Fogbank. `/pp theme` on its own lists them. |
 | `/pp reset` | Puts the card back in its starting spot |
 | `/pp demo` | Shows the card with a pretend partner |
@@ -85,8 +102,8 @@ These are two different parts of Partner Panel, and neither of them needs you to
 Your copy of Partner Panel and your partner's copy send each other small, hidden addon messages, so you can see how they are doing and they can see how you are doing.
 
 - **Messages take the best road open to them.** While your partner is in your group, the two copies talk over the group channel, which is the one road addon messages are known to travel on WoW Forever. When you are not grouped, they talk over Battle.net, which carries addon messages between friends wherever they are in the world. Addon whispers between players do not currently arrive on Forever, so they sit last in the queue, still tried in case Blizzard ever lets them through. `/pp status` tells you which road is in use.
-- **Only your partner reads your messages.** Each one is addressed to them by name, and anyone else in the group running Partner Panel quietly ignores it. The Battle.net ones only ever go to your partner's account, and to nobody else on your friends list.
-- **This is everything it shares:** your level, class, zone and subzone, your status (AFK, in combat, dead, and so on), your health as a percentage, and your mood. Never a number, never a location finer than your subzone.
+- **Only your partner reads your messages.** Each one is addressed to them by name, and anyone else in the group running Partner Panel ignores it. The Battle.net ones only ever go to your partner's account, and to nobody else on your friends list.
+- **This is everything it shares:** your level, class, zone and subzone, your status (AFK, in combat, dead, and so on), your health as a percentage, your mood, and the items you ask about. Your exact spot goes only when you send a ping, and only to your partner. The rest of the time, nothing finer than your subzone.
 - **Nothing leaves the game.** There are no websites, no accounts, no tracking, and nothing to sign up for. Your link and settings live in your own WoW folder, one character at a time.
 - **It waits its turn in combat.** WoW sometimes holds addon messages at the door during a fight. Partner Panel waits, and everything goes through once the fight is over, without flooding your chat.
 
@@ -104,9 +121,7 @@ Your copy of Partner Panel and your partner's copy send each other small, hidden
 
 Partner Panel is very new, and it has plans.
 
-- **"Should I keep this?":** shift-click an item to ask your partner about it. They answer Equip, Sell, Keep, or Bank, and their answer stays on the item's tooltip, so nobody has to ask about the same grey sword twice.
-- **"Come here" ping:** your partner drops a waypoint, and an arrow on your map and screen points you to it.
-- **Adventure journal:** it quietly remembers your firsts together, your first dungeon, your first boss, every new zone, with timestamps and screenshots. A small scrapbook of the two of you.
+- **Adventure journal:** it remembers your firsts together, your first dungeon, your first boss, every new zone, with timestamps and screenshots. A small scrapbook of the two of you.
 - **Tip cards:** your partner writes tips ahead of time, and they appear for you at the right moment, when you walk into a zone or a dungeon, or reach a certain level. It is like having them on your shoulder, even when they are off making dinner.
 
 ---

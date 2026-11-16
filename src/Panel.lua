@@ -53,6 +53,12 @@ function Panel.SetTheme(name)
     return THEMES[key].label
 end
 
+-- The theme's accent and background colours, for the other windows to match the card.
+function Panel.Colors()
+    local t = theme()
+    return t.accent, t.bg
+end
+
 function Panel.ApplyTheme()
     if not frame then
         return
@@ -149,7 +155,12 @@ function Panel.Render()
     if s then
         line2:SetText(place(s.zone, s.subzone))
         local text = statusWord(s.flags)
-        if s.mood and s.mood ~= "" then
+        if v.ping then -- a fresh ping matters more than the mood, until it is done
+            text = text .. "  " .. v.ping.text
+            if v.ping.distance then
+                text = text .. (" |cffb0b0b0%d yd|r"):format(math.floor(v.ping.distance + 0.5))
+            end
+        elseif s.mood and s.mood ~= "" then
             text = text .. "  |cffe6d2ff\"" .. s.mood .. "\"|r"
         end
         line3:SetText(text)

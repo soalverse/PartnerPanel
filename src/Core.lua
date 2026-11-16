@@ -71,6 +71,7 @@ local DEFAULTS = {
     -- partner = "First Last",   -- set once linked
     -- lastKnown = { zone, subzone, level, class, at },
     mood = "",
+    answers = {}, -- [item id] = { answer = "keep", from = "First Last", at = time() }
     panel = { shown = true, locked = false, theme = "coral" },
 }
 

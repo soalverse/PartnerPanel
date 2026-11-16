@@ -1,5 +1,13 @@
 # Partner Panel changelog
 
+## v0.3.0
+
+Two new ways to talk without typing.
+
+- **Pings:** hold your ping key, point, and let go. Stand here, Come here, Follow me, Watch out and Grab this put a pin on your partner's map and an arrow on their screen, where you are standing. Follow me keeps moving with you for three minutes. Set the key in Key Bindings, under Partner Panel, or type `/pp ping`.
+- **Should I keep this?:** hold Alt and click an item in your bags to ask your partner Equip, Sell, Keep or Bank, and their answer stays on the item's tooltip.
+- **The health bar,** honestly this time: WoW Forever keeps health private during a fight, so the bar steps aside until it is over.
+
 ## v0.2.0 (2026-11-09)
 
 Your cards no longer need a group to stay live.

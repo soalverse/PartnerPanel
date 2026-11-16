@@ -138,6 +138,7 @@ local function newClient(first, last, zone)
         zone = zone, subzone = "", level = 10, class = "MAGE",
         afk = false, combat = false, hp = 80, maxhp = 100, connected = true, hidesInCombat = false,
         registered = {}, fontStrings = {}, textures = {}, log = {}, sent = {}, popups = {},
+        map = 1429, x = 0.5, y = 0.5, inDungeon = false, cursorX = 500, cursorY = 500, itemCache = {},
         -- Battle.net: how this player's game account looks in a friend's list
         gaid = 1000 + n, battleTag = first .. "#" .. (4000 + n), bnetChar = first, bnetRealm = last,
     }
@@ -205,6 +206,7 @@ local function newClient(first, last, zone)
     env.GetNumGroupMembers = function() return inGroup(c) and #group or 0 end
     env.GetNumSubgroupMembers = function() return inGroup(c) and (#group - 1) or 0 end
     env.UnitName = function(unit)
+        if unit == "target" and c.targetNPC then return c.targetNPC end
         local u = unitClient(unit)
         if u then return u.first, u.last end
         return nil
@@ -247,7 +249,46 @@ local function newClient(first, last, zone)
         SendGameData = function(id, prefix, text) return sendBNet(c, id, prefix, text) end,
     }
 
-    env.UnitExists = function(unit) return unitClient(unit) ~= nil end
+    -- Maps: every map is 1000 yards across on one continent, so 0.01 of a map is 10 yards.
+    env.C_Map = {
+        GetBestMapForUnit = function() if c.inDungeon then return nil end return c.map end,
+        GetPlayerMapPosition = function() return { x = c.x, y = c.y } end,
+        CanSetUserWaypointOnMap = function() return true end,
+        SetUserWaypoint = function(point) c.waypoint = point return true end,
+        GetUserWaypoint = function() return c.waypoint end,
+        ClearUserWaypoint = function() c.waypoint = nil end,
+        GetMapInfo = function(map) return { name = (map == 1436 and "Westfall") or "Elwynn Forest" } end,
+        GetWorldPosFromMapPos = function(_, v) return 0, { x = v.x * 1000, y = v.y * 1000 } end,
+    }
+    env.UiMapPoint = { CreateFromCoordinates = function(m, x, y) return { uiMapID = m, position = { x = x, y = y } } end }
+    env.CreateVector2D = function(x, y) return { x = x, y = y } end
+    env.C_SuperTrack = { SetSuperTrackedUserWaypoint = function(v) c.supertracked = v end }
+    env.GetCursorPosition = function() return c.cursorX, c.cursorY end
+
+    -- Items: the first look at an item this client has never seen asks the server.
+    local ITEMS = { [19422] = "Darkmoon Faire Fortune", [2589] = "Linen Cloth" }
+    env.GetItemInfo = function(item)
+        local id = tonumber(tostring(item):match("item:(%d+)"))
+        if not id or not ITEMS[id] then return nil end
+        if not c.itemCache[id] then c.itemCache[id] = true return nil end
+        local link = "|cffffffff|Hitem:" .. id .. "::::::::60:::::|h[" .. ITEMS[id] .. "]|h|r"
+        return ITEMS[id], link, 1, 1, 0, "Misc", "Junk", 20, "", "Interface\\Icons\\Item" .. id
+    end
+    -- Modified clicks on items all pass through HandleModifiedItemClick.
+    c.hooks, c.keys, c.button = {}, {}, "LeftButton"
+    env.HandleModifiedItemClick = function() return false end
+    env.hooksecurefunc = function(name, fn) c.hooks[name] = fn end
+    env.IsAltKeyDown = function() return c.keys.alt == true end
+    env.IsShiftKeyDown = function() return c.keys.shift == true end
+    env.IsControlKeyDown = function() return c.keys.ctrl == true end
+    env.GetMouseButtonClicked = function() return c.button end
+    env.TooltipDataProcessor ={ AddTooltipPostCall = function(_, fn) c.tooltipPost = fn end }
+    env.Enum.TooltipDataType = { Item = 0 }
+
+    env.UnitExists = function(unit)
+        if unit == "target" and c.targetNPC then return true end
+        return unitClient(unit) ~= nil
+    end
     env.UnitIsPlayer = function(unit) return unitClient(unit) ~= nil end
     env.UnitIsUnit = function(a, b) return unitClient(a) == unitClient(b) end
     env.UnitIsConnected = function(unit) local u = unitClient(unit); return u and u.connected or false end
@@ -551,6 +592,219 @@ bram.connected = false
 advance(130)
 check("BN: her card shows him offline after he logs off", ally.ns.partnerState.online == false)
 check("BN: offline card says so", panel(ally).line3:find("Offline, or out of reach", 1, true) ~= nil, panel(ally).line3)
+
+---------------------------------------------------------------------------
+-- Pings: a pin and an arrow, dropped where you stand
+---------------------------------------------------------------------------
+local function logCount(c, needle)
+    local n = 0
+    for _, line in ipairs(c.log) do
+        if line:find(needle, 1, true) then n = n + 1 end
+    end
+    return n
+end
+
+bram.connected = true
+group = { ally, bram }
+roster()
+advance(5)
+check("ping: back together for the ping tests", ally.ns.partnerState.online and bram.ns.partnerState.online)
+
+ally.x, ally.y = 0.40, 0.60
+bram.x, bram.y = 0.50, 0.50
+ally.slash("ping come")
+advance(1)
+local wp = bram.waypoint
+check("ping: Bram gets a map pin", wp ~= nil and wp.uiMapID == 1429, wp and wp.uiMapID)
+check("ping: on the spot Ally stood", wp and math.abs(wp.position.x - 0.40) < 0.0001 and math.abs(wp.position.y - 0.60) < 0.0001)
+check("ping: with the arrow switched on", bram.supertracked == true)
+check("ping: and a line in chat", logHas(bram, "Ally Rose: |cff7fff7fCome here|r (Elwynn Forest)"))
+check("ping: Ally is told it went", logHas(ally, "Pinged Bram Stone"))
+check("ping: his card shows it", panel(bram).line3:find("Come here", 1, true) ~= nil, panel(bram).line3)
+check("ping: with how far away it is", panel(bram).line3:find("141 yd", 1, true) ~= nil, panel(bram).line3)
+
+bram.x, bram.y = 0.405, 0.60 -- five yards off
+advance(2)
+check("ping: walking up to it clears his pin", bram.waypoint == nil)
+check("ping: and tells him", logHas(bram, "You made it to Ally Rose's ping."))
+check("ping: and tells her", logHas(ally, "Bram Stone made it to your ping."))
+check("ping: his card goes back to normal", panel(bram).line3:find("Come here", 1, true) == nil, panel(bram).line3)
+
+ally.targetNPC = "Hogger"
+ally.slash("ping watch")
+advance(1)
+check("ping: Watch out names her target", logHas(bram, "Watch out|r: Hogger"))
+ally.slash("ping come") -- straight after: too soon, dropped
+advance(1)
+check("ping: a second ping within a moment is dropped", bram.ns.Ping.Current().kind == "watch")
+advance(3)
+check("ping: standing on a Watch out does not count as made it", bram.waypoint ~= nil and bram.ns.Ping.Current() ~= nil)
+ally.targetNPC = nil
+advance(300)
+check("ping: an old ping wears off after 5 minutes", bram.ns.Ping.Current() == nil)
+check("ping: and takes its pin with it", bram.waypoint == nil)
+
+ally.slash("ping stand")
+advance(1)
+bram.waypoint = { uiMapID = 1436, position = { x = 0.1, y = 0.1 } } -- he puts down his own pin
+advance(301)
+check("ping: never clears a pin he placed himself", bram.waypoint and bram.waypoint.uiMapID == 1436)
+bram.waypoint = nil
+
+-- Follow me, over Battle.net
+group = {}
+roster()
+advance(3)
+check("ping: now apart, the route is Battle.net", ally.ns.Comm.Route("Bram Stone") == "BNET")
+bram.x, bram.y = 0.9, 0.9
+ally.slash("ping follow")
+advance(1)
+check("follow: he gets her spot", bram.waypoint and math.abs(bram.waypoint.position.x - 0.40) < 0.0001)
+check("follow: she is told it lasts 3 minutes", logHas(ally, "for the next 3 minutes"))
+ally.x = 0.45
+advance(3)
+check("follow: the pin moves with her", bram.waypoint and math.abs(bram.waypoint.position.x - 0.45) < 0.0001,
+    bram.waypoint and bram.waypoint.position.x)
+check("follow: without a new chat line each time", logCount(bram, "Follow me") == 1, logCount(bram, "Follow me"))
+local before = #ally.sent
+advance(9)
+check("follow: standing still sends nothing", #ally.sent == before, #ally.sent - before)
+ally.slash("ping stop")
+advance(1)
+check("follow: stop reaches him", logHas(bram, "Ally Rose stopped sharing where they are."))
+check("follow: and clears his pin", bram.waypoint == nil)
+
+advance(2)
+ally.slash("ping follow")
+advance(181)
+check("follow: ends by itself after 3 minutes", not ally.ns.Ping.Following())
+check("follow: and says so", logCount(ally, "Stopped sharing where you are.") == 2, logCount(ally, "Stopped sharing where you are."))
+
+ally.inDungeon = true
+local sentBefore = #ally.sent
+ally.slash("ping come")
+advance(1)
+check("ping: in a dungeon it explains instead of sending", logHas(ally, "keeping your exact spot private")
+    and #ally.sent == sentBefore)
+ally.inDungeon = false
+
+-- The wheel: hold the key, point, let go
+local slice = ally.ns.Wheel.SliceAt
+check("wheel: up is Come here", slice(0, 100) == "come")
+check("wheel: up and right is Follow me", slice(95, 31) == "follow")
+check("wheel: up and left is Stand here", slice(-95, 31) == "stand")
+check("wheel: down and right is Grab this", slice(59, -81) == "grab")
+check("wheel: down and left is Watch out", slice(-59, -81) == "watch")
+check("wheel: the middle is cancel", slice(5, 5) == nil)
+
+advance(2)
+ally.cursorX, ally.cursorY = 500, 500
+ally.env.PartnerPanel_PingKey("down")
+check("wheel: opens on key down", ally.ns.Wheel.IsOpen())
+ally.cursorY = 600
+ally.env.PartnerPanel_PingKey("up")
+advance(1)
+check("wheel: closes on let go", not ally.ns.Wheel.IsOpen())
+check("wheel: and sends what you pointed at", bram.ns.Ping.Current() and bram.ns.Ping.Current().kind == "come")
+
+advance(2)
+sentBefore = #ally.sent
+ally.cursorX, ally.cursorY = 500, 500
+ally.env.PartnerPanel_PingKey("down")
+ally.cursorX = 510
+ally.env.PartnerPanel_PingKey("up")
+advance(1)
+check("wheel: letting go in the middle sends nothing", #ally.sent == sentBefore)
+
+---------------------------------------------------------------------------
+-- "Should I keep this?"
+---------------------------------------------------------------------------
+local LINK = "|cffffffff|Hitem:19422::::::::60:::::|h[Darkmoon Faire Fortune]|h|r"
+ally.slash("ask " .. LINK)
+advance(2)
+local ask = bram.env.PartnerPanelAsk
+check("ask: Bram gets the question window", ask and ask.shown)
+check("ask: it says who is asking", ask and ask.title.text == "Ally Rose asks: should I keep this?", ask and ask.title.text)
+check("ask: and shows the item, once his game has looked it up", ask and ask.itemName.text:find("Darkmoon Faire Fortune", 1, true) ~= nil,
+    ask and ask.itemName.text)
+check("ask: Ally is told it went", logHas(ally, "Asked Bram Stone about"))
+
+ally.slash("ask |cffffffff|Hitem:2589::::::::60:::::|h[Linen Cloth]|h|r")
+advance(2)
+check("ask: a second question waits its turn", ask.itemName.text:find("Darkmoon", 1, true) ~= nil)
+
+ask.buttons.keep.scripts.OnClick()
+advance(2)
+local a = ally.ns.db.answers[19422]
+check("ask: his answer is saved on her side", a and a.answer == "keep" and a.from == "Bram Stone", a and a.answer)
+check("ask: and she hears it", logHas(ally, "Bram Stone says |cff7fbfffKeep|r for"))
+check("ask: then the next question shows", ask.shown and ask.itemName.text:find("Linen Cloth", 1, true) ~= nil, ask.itemName.text)
+
+local tip = { lines = {}, AddLine = function(self, t) self.lines[#self.lines + 1] = t end }
+ally.tooltipPost(tip, { id = 19422 })
+check("ask: the answer is on her tooltip", tip.lines[1] and tip.lines[1]:find("Bram Stone says", 1, true) ~= nil, tip.lines[1])
+local tip2 = { lines = {}, AddLine = tip.AddLine }
+ally.tooltipPost(tip2, { id = 2589 })
+check("ask: and only on that item", #tip2.lines == 0)
+
+ask.buttons.sell.scripts.OnClick()
+advance(2)
+check("ask: second answer saved too", ally.ns.db.answers[2589] and ally.ns.db.answers[2589].answer == "sell")
+check("ask: the window goes away when nothing is left", not ask.shown)
+
+sentBefore = #ally.sent
+ally.slash("ask")
+check("ask: with no item it explains how", logHas(ally, "shift-click the item") and #ally.sent == sentBefore)
+
+-- Alt-click an item in your bags to ask
+local CLOTH = "|cffffffff|Hitem:2589::::::::60:::::|h[Linen Cloth]|h|r"
+local function altClick(c, link)
+    c.hooks.HandleModifiedItemClick(link)
+end
+local asksSent = function()
+    local n = 0
+    for _, s in ipairs(ally.sent) do
+        if s.msg:find("ASK", 1, true) then n = n + 1 end
+    end
+    return n
+end
+local asks = asksSent()
+ally.keys.alt = true
+altClick(ally, CLOTH)
+altClick(ally, CLOTH) -- the same click passing through a second time
+advance(2)
+check("alt-click: asks about the item", ask.shown and ask.itemName.text:find("Linen Cloth", 1, true) ~= nil,
+    ask.itemName.text)
+check("alt-click: one click asks once", asksSent() == asks + 1, asksSent() - asks)
+ask.buttons.bank.scripts.OnClick()
+advance(2)
+check("alt-click: and the answer comes back like any other", ally.ns.db.answers[2589].answer == "bank")
+
+asks = asksSent()
+ally.keys.shift = true
+altClick(ally, CLOTH)
+ally.keys.shift = false
+ally.keys.alt = false
+altClick(ally, CLOTH)
+ally.keys.alt = true
+ally.button = "RightButton"
+altClick(ally, CLOTH)
+ally.button = "LeftButton"
+ally.keys.alt = false
+advance(2)
+check("alt-click: Shift, no Alt, or a right click never ask", asksSent() == asks, asksSent() - asks)
+
+-- Nobody else can answer for your partner
+cara.ns.db.partner = "Ally Rose"
+cara.ns.Comm.Send("Ally Rose", cara.ns.Protocol.Encode("ANSWER", 2589, "keep"))
+advance(2)
+check("ask: an answer from someone who is not your partner is ignored", ally.ns.db.answers[2589].answer == "bank")
+
+-- Unlinked: the ping and ask commands explain instead
+cara.ns.db.partner = nil
+cara.slash("ping come")
+cara.slash("ask " .. LINK)
+check("unlinked: ping and ask both point at /pp link", logCount(cara, "Link with your partner first") == 2)
 
 print(("%d passed, %d failed"):format(passed, failed))
 if failed > 0 then

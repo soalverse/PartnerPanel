@@ -1,0 +1,5 @@
+<Bindings>
+    <Binding name="PARTNERPANEL_PING" header="PARTNERPANEL" runOnUp="true">
+        PartnerPanel_PingKey(keystate)
+    </Binding>
+</Bindings>

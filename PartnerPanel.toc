@@ -2,7 +2,7 @@
 ## Title: Partner Panel
 ## Notes: Link up with your favourite person and see each other at a glance.
 ## Author: Alexia
-## Version: 0.2.0
+## Version: 0.3.0
 ## X-Curse-Project-ID: 1789713
 ## IconTexture: Interface\Icons\INV_Misc_Rune_01
 ## SavedVariablesPerCharacter: PartnerPanelCharDB
@@ -13,6 +13,9 @@ src\BNet.lua
 src\Comm.lua
 src\Link.lua
 src\Status.lua
+src\Ping.lua
 src\Panel.lua
 src\Demo.lua
+src\Wheel.lua
+src\Keep.lua
 src\Commands.lua
