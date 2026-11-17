@@ -2,7 +2,7 @@
 ## Title: Partner Panel
 ## Notes: Link up with your favourite person and see each other at a glance.
 ## Author: Alexia
-## Version: 0.3.5
+## Version: 0.4.0
 ## X-Curse-Project-ID: 1789713
 ## IconTexture: Interface\Icons\INV_Misc_Rune_01
 ## SavedVariables: PartnerPanelDB

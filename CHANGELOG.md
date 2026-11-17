@@ -1,5 +1,16 @@
 # Partner Panel changelog
 
+## v0.4.0 (2026-11-16)
+
+Pings you can actually see, and a scrapbook of the two of you.
+
+- **Pings float over the spot:** a little glowing icon hangs over the exact place you pinged, with its name and the yards, so your partner can see it out in the world and not only on the map. Five new animated icons come with it: two feet, a trail to an X, a sparkle, an exclamation mark and a pointing hand.
+- **Follow me over your head:** when your partner is close enough to see you, the sparkle sits right over your head.
+- **A heart over your partner:** a glowing heart that follows them around. It is off until you tick it in `/pp options`.
+- **Partner journal:** your firsts together and your partner history, with dates, across every character on your account. Type `/pp journal`, or use the button on the settings page.
+- **Quieter chat:** pings, answers and new links arrive as small notes that fade on their own, and while a ping is live, your partner's card says where to look.
+- **After updating,** close WoW completely and start it again (a `/reload` is not enough), so it can load the new pictures.
+
 ## v0.3.5 (2026-11-16)
 
 A settings page, and a ping key you can actually find.

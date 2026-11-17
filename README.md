@@ -30,21 +30,34 @@ The panel is a small card you can drag anywhere on your screen, and this little 
 `/pp mood` leaves a short message on your partner's card, up to 60 characters, and it stays there until you change it. Use it for *"brb, snacks,"* *"come find me,"* or *"I have made a terrible mistake in this cave."*
 
 ### Pings
-Hold your ping key, point at one of five options, and let go. Your partner gets a pin on their map and an arrow on their screen, right where you were standing.
+Hold your ping key, point at one of five options, and let go. Your partner gets a little glowing icon floating over the exact spot you were standing, with its name and how many yards away it is, plus a pin on their map and an arrow on their minimap.
 
-- **Stand here,** for when you want them on one particular spot
-- **Come here,** for when you would like some company
-- **Follow me,** which keeps the pin moving with you for three minutes, so they can catch up while you keep walking
-- **Watch out,** with the name of whatever you are pointing at (*Watch out: Hogger*)
-- **Grab this,** for the chest, the herb, or the quest item they are about to walk straight past
+- **Stand here,** two little feet, for when you want them on one particular spot
+- **Come here,** a trail of stones to an X, for when you would like some company
+- **Follow me,** a sparkle that keeps up with you for three minutes, so they can catch up while you keep walking. When they are close enough to see you, it sits right over your head.
+- **Watch out,** a blinking exclamation mark, with the name of whatever you are pointing at (*Watch out: Hogger*)
+- **Grab this,** a pointing hand, for the chest, the herb, or the quest item they are about to walk straight past
 
-When they reach the pin, it clears itself and tells you they made it. The pin always lands on the floor under you, not under your mouse, because WoW keeps that spot for its own pings, and it does not work inside dungeons, where WoW keeps your position to itself. Set your key in the settings (type `/pp options`), or type `/pp ping` to click instead.
+The news arrives as a small note at the top of the screen that fades on its own, so your chat stays quiet, and while a ping is live, the card says where to look. When they reach it, it clears itself and lets you know they made it. The pin always lands on the floor under you, not under your mouse, because WoW keeps that spot for its own pings, and it does not work inside dungeons, where WoW keeps your position to itself. Set your key in the settings (type `/pp options`), or type `/pp ping` to click instead.
 
 ### Should I keep this?
-Hold Alt and click an item in your bags. Your partner gets a little window with the item and four buttons, Equip, Sell, Keep and Bank. Their answer lands in your chat and stays on that item's tooltip from then on, so nobody has to ask about the same grey sword twice. If another addon already uses Alt-click, type `/pp ask`, shift-click the item, and press Enter instead.
+Hold Alt and click an item in your bags. Your partner gets a little window with the item and four buttons, Equip, Sell, Keep and Bank. Their answer pops up as a little note at the top of your screen and stays on that item's tooltip from then on, so nobody has to ask about the same grey sword twice. If another addon already uses Alt-click, type `/pp ask`, shift-click the item, and press Enter instead.
 
 ### Settings
-Partner Panel has its own page in the game's Options, under AddOns, or type `/pp options` to jump straight there. It keeps everything in one place: your ping key, showing or locking the card, putting it back where it started, making it bigger or smaller, fading its background, picking a theme from eight little swatches, and switching off Alt-click asking or the sounds. Everything changes the moment you click it, and the `/pp` commands still work alongside it.
+Partner Panel has its own page in the game's Options, under AddOns, or type `/pp options` to jump straight there. It keeps everything in one place: your ping key, showing or locking the card, putting it back where it started, making it bigger or smaller, fading its background, picking a theme from eight little swatches, the heart over your partner, switching off Alt-click asking or the sounds, and the door to your partner journal. Everything changes the moment you click it, and the `/pp` commands still work alongside it.
+
+### The heart over your partner
+If you would like to spot your partner in a crowd, Partner Panel can float a little glowing heart over their head. It is off until you turn it on:
+
+1. Type `/pp options`, or open the game's **Options**, then **AddOns**, then **Partner Panel**.
+2. Tick **Float a heart over your partner**.
+
+The heart sits on your partner's name bar, so it follows them wherever they walk. To make that work, Partner Panel switches on WoW's name bars for friendly players while the heart is on, which means other friendly players get name bars too. Untick it and that setting goes back the way it was. The heart shows when your partner is within about 40 yards, and not inside dungeons, where WoW keeps name bars to itself.
+
+### Partner journal
+Partner Panel keeps a little scrapbook of your firsts together: the first time you are in each zone together, your first dungeon, your first boss wherever WoW Forever lets us see one, every tenth level for each of you, your first ping, and the first time you both died in the same fight. Every entry has its date.
+
+It keeps your partner history too, one page per partner with your current partner first, showing the days you linked and unlinked and roughly how long you have spent online together. It covers every character on your account, so nothing is lost when you switch. Open it from the settings page, or type `/pp journal`. If you were already linked before this version, your page starts on the day you updated, because Partner Panel did not keep link dates until now.
 
 ### Linking
 Group up, type `/pp link`, and your partner gets a popup asking whether they would like to link with you. It is a very polite popup. If the two of you are Battle.net friends, you do not need the group at all, and `/pp link First Last` reaches them wherever they happen to be standing. Your link is remembered after that, grouped or not, and the card goes live on its own (more on that in [Your link and the live connection](#your-link-and-the-live-connection)).
@@ -93,6 +106,7 @@ These are two different parts of Partner Panel, and neither of them needs you to
 | `/pp theme <name>` | Repaints the card. Coral, Storm, Tempest, Ember, Sunset, Sunlit, Wisteria or Fogbank. `/pp theme` on its own lists them. |
 | `/pp reset` | Puts the card back in its starting spot |
 | `/pp options` | Opens the settings page |
+| `/pp journal` | Opens your partner journal |
 | `/pp demo` | Shows the card with a pretend partner |
 | `/pp status` | Shows the connection details, including which road your messages are taking, for when something is not working |
 | `/pp` | Lists every command |
@@ -108,7 +122,7 @@ Your copy of Partner Panel and your partner's copy send each other small, hidden
 - **Messages take the best road open to them.** While your partner is in your group, the two copies talk over the group channel, which is the one road addon messages are known to travel on WoW Forever. When you are not grouped, they talk over Battle.net, which carries addon messages between friends wherever they are in the world. Addon whispers between players do not currently arrive on Forever, so they sit last in the queue, still tried in case Blizzard ever lets them through. `/pp status` tells you which road is in use.
 - **Only your partner reads your messages.** Each one is addressed to them by name, and anyone else in the group running Partner Panel ignores it. The Battle.net ones only ever go to your partner's account, and to nobody else on your friends list.
 - **This is everything it shares:** your level, class, zone and subzone, your status (AFK, in combat, dead, and so on), your health as a percentage, your mood, and the items you ask about. Your exact spot goes only when you send a ping, and only to your partner. The rest of the time, nothing finer than your subzone.
-- **Nothing leaves the game.** There are no websites, no accounts, no tracking, and nothing to sign up for. Your link and settings live in your own WoW folder, one character at a time.
+- **Nothing leaves the game.** There are no websites, no accounts, no tracking, and nothing to sign up for. Your link, your settings and your journal live in your own WoW folder.
 - **It waits its turn in combat.** WoW sometimes holds addon messages at the door during a fight. Partner Panel waits, and everything goes through once the fight is over, without flooding your chat.
 
 ---
@@ -125,7 +139,6 @@ Your copy of Partner Panel and your partner's copy send each other small, hidden
 
 Partner Panel is very new, and it has plans.
 
-- **Adventure journal:** it remembers your firsts together, your first dungeon, your first boss, every new zone, with timestamps and screenshots. A small scrapbook of the two of you.
 - **Tip cards:** your partner writes tips ahead of time, and they appear for you at the right moment, when you walk into a zone or a dungeon, or reach a certain level. It is like having them on your shoulder, even when they are off making dinner.
 
 ---
