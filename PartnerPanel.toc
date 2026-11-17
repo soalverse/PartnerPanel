@@ -15,7 +15,9 @@ src\Comm.lua
 src\Link.lua
 src\Status.lua
 src\Ping.lua
+src\Heart.lua
 src\Panel.lua
+src\Toast.lua
 src\Demo.lua
 src\Wheel.lua
 src\Keep.lua

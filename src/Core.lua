@@ -15,6 +15,33 @@ function ns.Print(fmt, ...)
     print(ns.TAG .. ": " .. text)
 end
 
+-- Flipbooks: an image made of frames side by side, played by moving which slice of it a
+-- texture shows. One shared timer drives every texture that is playing.
+local FLIP_FPS = 8 / 1.2 -- eight frames, one loop every 1.2 seconds
+local playing = setmetatable({}, { __mode = "k" }) -- [texture] = frame count
+local flipClock = 0
+ns.flipbookDriver = CreateFrame("Frame")
+ns.flipbookDriver:SetScript("OnUpdate", function(_, elapsed)
+    flipClock = flipClock + (elapsed or 0)
+    local frame = math.floor(flipClock * FLIP_FPS)
+    for tex, n in pairs(playing) do
+        local i = frame % n
+        tex:SetTexCoord(i / n, (i + 1) / n, 0, 1)
+    end
+end)
+
+-- Shows `path` on `tex`; with `frames` above 1 it plays as a looping flipbook.
+function ns.Flipbook(tex, path, frames)
+    tex:SetTexture(path)
+    if frames and frames > 1 then
+        playing[tex] = frames
+        tex:SetTexCoord(0, 1 / frames, 0, 1)
+    else
+        playing[tex] = nil
+        tex:SetTexCoord(0, 1, 0, 1)
+    end
+end
+
 -- Plays one of WoW's built-in sounds by its SOUNDKIT name, unless sounds are off.
 function ns.Sound(name)
     if ns.db and ns.db.sounds == false then
@@ -85,6 +112,7 @@ local DEFAULTS = {
     answers = {}, -- [item id] = { answer = "keep", from = "First Last", at = time() }
     altAsk = true, -- Alt-click an item to ask about it
     sounds = true, -- a sound when a ping or a question arrives
+    heart = false, -- a heart over your partner's head (off unless you turn it on)
     panel = { shown = true, locked = false, theme = "coral", scale = 1, alpha = 0.9 },
 }
 

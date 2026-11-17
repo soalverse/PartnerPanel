@@ -19,7 +19,7 @@ local function setPartner(name)
 end
 
 local function linked(name)
-    ns.Print("You and %s are linked! |cffff9f7a<3|r", name)
+    ns.Toast.Show(name, "You are linked now |cffff9f7a<3|r", ns.Ping.Icon("follow"), ns.Ping.FRAMES)
     ns.Fire("SAY_HELLO")
 end
 

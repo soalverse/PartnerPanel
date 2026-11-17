@@ -23,7 +23,8 @@ local THEMES = {
 local THEME_ORDER = { "coral", "storm", "tempest", "ember", "sunset", "sunlit", "wisteria", "fogbank" }
 local DEFAULT_THEME = "coral"
 
-local frame, icon, nameText, levelText, line2, line3, healthBar
+local frame, icon, nameText, levelText, line2, line3, line4, healthBar
+local EXTRA = 14 -- how much taller the card gets for the fourth line
 
 local function theme()
     return THEMES[ns.db and ns.db.panel and ns.db.panel.theme or DEFAULT_THEME] or THEMES[DEFAULT_THEME]
@@ -153,6 +154,21 @@ local function place(zone, subzone)
     return zone or ""
 end
 
+-- The fourth line: what to do about a live ping, or how long you are still sharing.
+local function liveLine(v)
+    if v and v.ping then
+        if v.ping.kind == "follow" then
+            return "Follow the arrow on your minimap"
+        end
+        return "Look for the arrow on your minimap"
+    end
+    local left = ns.Ping and ns.Ping.FollowLeft()
+    if v and left then
+        return ("|cffe6d2ffSharing where you are, %d:%02d left|r"):format(math.floor(left / 60), left % 60)
+    end
+    return nil
+end
+
 function Panel.Render()
     if not frame then
         return
@@ -160,6 +176,10 @@ function Panel.Render()
     local v = ns.GetPartnerView()
     healthBar:Hide()
     levelText:SetText("")
+
+    local live = liveLine(v)
+    line4:SetText(live or "")
+    frame:SetHeight(live and HEIGHT + EXTRA or HEIGHT)
 
     if not v then
         setIcon(nil)
@@ -301,6 +321,14 @@ local function create()
     line3:SetPoint("RIGHT", frame, "RIGHT", -10, 0)
     line3:SetJustifyH("LEFT")
     line3:SetWordWrap(false)
+
+    -- Only there while a ping is live, or while you are sharing where you are;
+    -- the card grows a little to make room, then shrinks back.
+    line4 = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    line4:SetPoint("TOPLEFT", line3, "BOTTOMLEFT", 0, -3)
+    line4:SetPoint("RIGHT", frame, "RIGHT", -10, 0)
+    line4:SetJustifyH("LEFT")
+    line4:SetWordWrap(false)
 
     healthBar = CreateFrame("StatusBar", nil, frame)
     healthBar:SetPoint("BOTTOMLEFT", 9, 7)

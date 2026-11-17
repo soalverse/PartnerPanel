@@ -12,8 +12,18 @@ ns.Ping = Ping
 
 Ping.LABELS = { stand = "Stand here", come = "Come here", follow = "Follow me", watch = "Watch out", grab = "Grab this" }
 Ping.COLORS = { stand = "7fbfff", come = "7fff7f", follow = "e6d2ff", watch = "ff5555", grab = "ffd200" }
--- Raid marker icons, which every client has: square, star, moon, skull, diamond.
-Ping.ICONS = { stand = 6, come = 1, follow = 5, watch = 8, grab = 3 }
+-- Our own icons, floating white-and-gold dots (media/ping-*.tga, drawn by
+-- scripts/make-icons.js): two feet, a path to an X, a sparkle, an exclamation mark,
+-- a pointing hand. Each is a little looping animation: FRAMES frames side by side.
+Ping.FRAMES = 8
+function Ping.Icon(kind)
+    return "Interface\\AddOns\\PartnerPanel\\media\\ping-" .. (kind or "come")
+end
+
+-- Puts a ping's icon on a texture and starts it playing.
+function Ping.SetIcon(tex, kind)
+    ns.Flipbook(tex, Ping.Icon(kind), Ping.FRAMES)
+end
 
 local SHOW_FOR = 300     -- a ping stays on the card (and the pin on the map) this long
 local FOLLOW_FOR = 180   -- "Follow me" keeps updating this long
@@ -117,7 +127,17 @@ function Ping.Following()
     return follow ~= nil
 end
 
-function Ping.StopFollow()
+-- Seconds left on "Follow me", or nil when it is not running.
+function Ping.FollowLeft()
+    if not follow then
+        return nil
+    end
+    return math.max(0, math.floor(FOLLOW_FOR - (GetTime() - follow.started) + 0.5))
+end
+
+-- `typed` is true when you asked for it with /pp ping stop, so it gets an answer in chat;
+-- running out on its own just shows on the card.
+function Ping.StopFollow(typed)
     if not follow then
         return
     end
@@ -125,7 +145,10 @@ function Ping.StopFollow()
     if ns.db and ns.db.partner then
         sendPing({ kind = "stop" })
     end
-    ns.Print("Stopped sharing where you are.")
+    if typed then
+        ns.Print("Stopped sharing where you are.")
+    end
+    ns.Fire("PARTNER_UPDATED")
 end
 
 -- Sends a ping of `kind` ("stand", "come", "follow", "watch", "grab", or "stop").
@@ -137,7 +160,7 @@ function Ping.Send(kind)
     end
     if kind == "stop" then
         if follow then
-            Ping.StopFollow()
+            Ping.StopFollow(true)
         else
             ns.Print("You are not sharing where you are right now.")
         end
@@ -164,13 +187,13 @@ function Ping.Send(kind)
 
     if kind == "follow" then
         local started = GetTime()
-        follow = { map = map, x = x, y = y }
+        follow = { map = map, x = x, y = y, started = started }
         follow.ticker = C_Timer.NewTicker(FOLLOW_EVERY, function()
             if not follow then
                 return
             end
             if GetTime() - started >= FOLLOW_FOR or not ns.db.partner then
-                Ping.StopFollow()
+                Ping.StopFollow(false)
                 return
             end
             local m, nx, ny = Ping.MyPosition()
@@ -179,11 +202,8 @@ function Ping.Send(kind)
                 sendPing({ kind = "follow", map = m, x = nx, y = ny })
             end
         end)
-        ns.Print("Sharing where you are with %s for the next 3 minutes. |cffffffff/pp ping stop|r ends it sooner.",
-            partner)
-    else
-        ns.Print("Pinged %s: %s.", partner, Ping.Text(kind, label))
     end
+    ns.Fire("PARTNER_UPDATED") -- your own card shows "Sharing where you are" while it runs
     return true
 end
 
@@ -231,10 +251,100 @@ local function placePin(p)
     return true
 end
 
+---------------------------------------------------------------------------
+-- The floating marker: our own icon, the ping's name and the yards, hung on the frame
+-- WoW keeps over the waypoint's spot on your screen (C_Navigation.GetFrame), so it
+-- floats over the actual place in the world. Pulses for a moment when it first shows.
+---------------------------------------------------------------------------
+local PULSE = 3 -- seconds
+local marker
+
+local function navFrame()
+    if not (C_Navigation and C_Navigation.GetFrame) then
+        return nil
+    end
+    local ok, f = pcall(C_Navigation.GetFrame)
+    return ok and f or nil
+end
+
+local function makeMarker()
+    marker = CreateFrame("Frame", "PartnerPanelPingMarker", UIParent)
+    marker:SetSize(64, 64)
+    marker:SetFrameStrata("LOW")
+    marker.icon = marker:CreateTexture(nil, "ARTWORK")
+    marker.icon:SetAllPoints()
+    marker.label = marker:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    marker.label:SetPoint("TOP", marker, "BOTTOM", 0, -1)
+    marker.yards = marker:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    marker.yards:SetPoint("TOP", marker.label, "BOTTOM", 0, -1)
+    marker:Hide()
+    marker:SetScript("OnUpdate", function(self, elapsed)
+        self.age = (self.age or 0) + (elapsed or 0)
+        local nav = self.nav
+        -- WoW hides its own waypoint frame when there is nothing to show; so do we
+        self:SetAlpha((nav and nav.IsShown and not nav:IsShown()) and 0 or 1)
+        if self.age < PULSE then
+            self:SetScale(1 + 0.18 * math.abs(math.sin(self.age * math.pi * 1.5)) * (1 - self.age / PULSE))
+        else
+            self:SetScale(1)
+        end
+    end)
+end
+
+local function hideMarker()
+    if marker then
+        marker:Hide()
+    end
+end
+
+-- Shows or updates the marker for the live ping (fresh = a new ping, so pulse again).
+local function showMarker(fresh)
+    -- "Follow me", with your partner close enough to have a nameplate: the sparkle sits
+    -- right over their head (above the heart, if that is on), and moves with them.
+    local overHead = incoming and incoming.kind == "follow" and ns.Heart and ns.Heart.Above()
+    local nav = not overHead and navFrame()
+    -- Otherwise, only while WoW's waypoint frame is pointing at OUR pin: if you put down
+    -- your own pin, or switched the arrow to a quest, it would float over the wrong place.
+    local tracking = true
+    if C_SuperTrack and C_SuperTrack.IsSuperTrackingUserWaypoint then
+        local ok, yes = pcall(C_SuperTrack.IsSuperTrackingUserWaypoint)
+        tracking = not ok or yes == true
+    end
+    if not (incoming and (overHead or (incoming.pinned and nav and tracking and pinIsOurs()))) then
+        hideMarker()
+        return
+    end
+    if not marker then
+        makeMarker()
+    end
+    marker.nav = nav or nil
+    marker.overHead = overHead and true or false
+    marker:ClearAllPoints()
+    marker:SetPoint("BOTTOM", overHead or nav, "TOP", 0, 4)
+    Ping.SetIcon(marker.icon, incoming.kind)
+    -- over their head it is plain who and where, so just the sparkle
+    marker.label:SetText(overHead and "" or Ping.Text(incoming.kind, incoming.label))
+    local d = Ping.Distance()
+    marker.yards:SetText((not overHead and d) and ("%d yd"):format(math.floor(d + 0.5)) or "")
+    if fresh then
+        marker.age = 0
+    end
+    marker:Show()
+end
+Ping.ShowMarker = showMarker
+
+-- Their nameplate came or went: move the "Follow me" sparkle between head and map spot.
+ns.Listen("PARTNER_PLATE_MOVED", function()
+    if incoming and incoming.kind == "follow" then
+        showMarker(false)
+    end
+end)
+
 function Ping.Clear()
     if pinIsOurs() then
         pcall(C_Map.ClearUserWaypoint)
     end
+    hideMarker()
     if incoming then
         incoming = nil
         ns.Fire("PARTNER_UPDATED")
@@ -280,8 +390,9 @@ function Ping.Current()
 end
 
 local function announce(p)
-    local where = zoneName(p.map)
-    ns.Print("%s: %s%s", p.from, Ping.Text(p.kind, p.label), where and (" (" .. where .. ")") or "")
+    local d = Ping.Distance()
+    local where = d and ("%d yd"):format(math.floor(d + 0.5)) or zoneName(p.map)
+    ns.Toast.Show(p.from, Ping.Text(p.kind, p.label) .. (where and (", " .. where) or ""), Ping.Icon(p.kind), Ping.FRAMES)
     ns.Sound("MAP_PING")
     ns.Fire("PINGED", "received", p.kind, p.from)
 end
@@ -298,7 +409,6 @@ ns.Listen("MESSAGE", function(kind, fields, from)
         end
         if p.kind == "stop" then
             if incoming and incoming.kind == "follow" then
-                ns.Print("%s stopped sharing where they are.", from)
                 Ping.Clear()
             end
             return
@@ -310,14 +420,16 @@ ns.Listen("MESSAGE", function(kind, fields, from)
         if not update then
             announce(p)
         end
+        showMarker(not update)
         ns.Fire("PARTNER_UPDATED")
     elseif kind == "ARRIVED" then
         if sent and GetTime() - sent.at < SHOW_FOR then
-            ns.Print("%s made it to your ping.", from)
+            ns.Toast.Show(from, "Made it to your ping", Ping.Icon(sent.kind), Ping.FRAMES)
             sent = nil
             if follow then
                 endFollow()
             end
+            ns.Fire("PARTNER_UPDATED")
         end
     end
 end)
@@ -328,9 +440,13 @@ ns.Listen("PARTNER_CHANGED", function()
     Ping.Clear()
 end)
 
--- Once a second: forget old pings, notice when I reach the pin, keep the distance fresh.
+-- Once a second: forget old pings, notice when I reach the pin, keep the distance fresh,
+-- and keep the "Sharing where you are" countdown on your own card ticking.
 local shownYards
 local function tick()
+    if follow then
+        ns.Fire("PARTNER_UPDATED")
+    end
     if not incoming then
         return
     end
@@ -341,10 +457,10 @@ local function tick()
     local d = Ping.Distance()
     if d and d <= ARRIVE_YARDS and incoming.kind ~= "watch" then
         ns.Comm.Send(ns.db.partner, P.Encode("ARRIVED"), "ARRIVED")
-        ns.Print("You made it to %s's ping.", incoming.from)
         Ping.Clear()
         return
     end
+    showMarker(false) -- keeps the yards under the marker fresh
     local yards = d and math.floor(d / 5) * 5
     if yards ~= shownYards then
         shownYards = yards

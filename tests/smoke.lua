@@ -61,13 +61,16 @@ local function uiObject(client, kind)
     function o:Hide() self.shown = false end
     function o:IsShown() return self.shown end
     function o:GetPoint() return "TOPLEFT", nil, "TOPLEFT", 24, -140 end
+    function o:SetPoint(...) self.point = { ... } end
     function o:SetValue(v) self.value = v end
+    function o:SetAlpha(a) self.alpha = a end
     function o:GetValue() return self.value end
     function o:SetChecked(v) self.checked = v and true or false end
     function o:GetChecked() return self.checked == true end
     function o:SetScale(v) self.scale = v end
     function o:SetBackdropColor(r, g, b, a) self.bgColor = { r, g, b, a } end
     function o:SetTexture(t) self.texture = t end
+    function o:SetTexCoord(a, b, c, d) self.coords = { a, b, c, d } end
     function o:SetStatusBarColor(r, g, b) self.barColor = { r, g, b } end
     function o:CreateTexture()
         local tex = uiObject(client, "Texture")
@@ -161,6 +164,7 @@ local function newClient(first, last, zone, opts)
         if unit == "player" then return c end
         local i = unit:match("^party(%d)$")
         if i and inGroup(c) then return others()[tonumber(i)] end
+        if unit:match("^nameplate%d+$") then return c.plateUnits[unit] end
         return nil
     end
 
@@ -270,7 +274,13 @@ local function newClient(first, last, zone, opts)
     }
     env.UiMapPoint = { CreateFromCoordinates = function(m, x, y) return { uiMapID = m, position = { x = x, y = y } } end }
     env.CreateVector2D = function(x, y) return { x = x, y = y } end
-    env.C_SuperTrack = { SetSuperTrackedUserWaypoint = function(v) c.supertracked = v end }
+    env.C_SuperTrack = {
+        SetSuperTrackedUserWaypoint = function(v) c.supertracked = v end,
+        IsSuperTrackingUserWaypoint = function() return c.supertracked == true end,
+    }
+    -- WoW's own "where the waypoint is on your screen" frame
+    c.navFrame = uiObject(c, "Frame")
+    env.C_Navigation = { GetFrame = function() return c.navFrame end }
     env.GetCursorPosition = function() return c.cursorX, c.cursorY end
 
     -- Items: the first look at an item this client has never seen asks the server.
@@ -308,6 +318,12 @@ local function newClient(first, last, zone, opts)
     env.SaveBindings = function(set) c.savedBindings = set end
     env.GetBindingText = function(key) return (key:gsub("SHIFT%-", "Shift-")) end
     env.InCombatLockdown = function() return c.lockdown == true end
+
+    -- Nameplates: which character each nameplate token is showing, and WoW's settings
+    c.plateUnits, c.plates, c.cvars = {}, {}, { nameplateShowFriends = "0" }
+    env.C_NamePlate = { GetNamePlateForUnit = function(unit) return c.plates[unit] end }
+    env.GetCVar = function(name) return c.cvars[name] end
+    env.SetCVar = function(name, value) c.cvars[name] = tostring(value) end
 
     c.sounds = {}
     env.SOUNDKIT = { MAP_PING = 1, TELL_MESSAGE = 2 }
@@ -370,7 +386,7 @@ local function panel(c)
     for _, f in ipairs(c.fontStrings) do
         if f.owner == c.env.PartnerPanelFrame then fs[#fs + 1] = f end
     end
-    return { level = fs[1].text, name = fs[2].text, line2 = fs[3].text, line3 = fs[4].text }
+    return { level = fs[1].text, name = fs[2].text, line2 = fs[3].text, line3 = fs[4].text, line4 = fs[5] and fs[5].text or "" }
 end
 
 ---------------------------------------------------------------------------
@@ -384,6 +400,20 @@ local function check(label, cond, detail)
         failed = failed + 1
         print("FAIL  " .. label .. (detail and ("\n      " .. tostring(detail)) or ""))
     end
+end
+-- Toasts: the small notes at the top of the screen, in the order they appeared
+local function toastHas(c, needle)
+    for _, t in ipairs(c.ns.Toast.history) do
+        if ((t.title or "") .. ": " .. (t.text or "")):find(needle, 1, true) then return true end
+    end
+    return false
+end
+local function toastCount(c, needle)
+    local n = 0
+    for _, t in ipairs(c.ns.Toast.history) do
+        if ((t.title or "") .. ": " .. (t.text or "")):find(needle, 1, true) then n = n + 1 end
+    end
+    return n
 end
 local function logHas(c, needle)
     for _, line in ipairs(c.log) do
@@ -432,7 +462,8 @@ advance(5)
 check("Bram is linked to Ally", bram.ns.db.partner == "Ally Rose", bram.ns.db.partner)
 check("Ally is linked to Bram", ally.ns.db.partner == "Bram Stone", ally.ns.db.partner)
 check("Cara stays unlinked", cara.ns.db.partner == nil)
-check("both see the linked message", logHas(ally, "You and Bram Stone are linked") and logHas(bram, "You and Ally Rose are linked"))
+check("both get a toast for the new link", toastHas(ally, "Bram Stone: You are linked now") and toastHas(bram, "Ally Rose: You are linked now"))
+check("and nothing about it in chat", not logHas(ally, "are linked") and not logHas(bram, "are linked"))
 
 check("Ally sees Bram online", ally.ns.partnerState.online == true)
 check("Ally's panel shows Bram's name", panel(ally).name == "Bram Stone", panel(ally).name)
@@ -665,22 +696,51 @@ local wp = bram.waypoint
 check("ping: Bram gets a map pin", wp ~= nil and wp.uiMapID == 1429, wp and wp.uiMapID)
 check("ping: on the spot Ally stood", wp and math.abs(wp.position.x - 0.40) < 0.0001 and math.abs(wp.position.y - 0.60) < 0.0001)
 check("ping: with the arrow switched on", bram.supertracked == true)
-check("ping: and a line in chat", logHas(bram, "Ally Rose: |cff7fff7fCome here|r (Elwynn Forest)"))
-check("ping: Ally is told it went", logHas(ally, "Pinged Bram Stone"))
+local mk = bram.env.PartnerPanelPingMarker
+check("marker: floats over the spot", mk and mk.shown)
+check("marker: with our path-to-an-X icon", mk and mk.icon.texture == [[Interface\AddOns\PartnerPanel\media\ping-come]], mk and mk.icon.texture)
+local function sameCoords(c, want)
+    if not c then return false end
+    for i = 1, 4 do if math.abs(c[i] - want[i]) > 1e-6 then return false end end
+    return true
+end
+check("marker: shows the first of its 8 frames", sameCoords(mk.icon.coords, { 0, 0.125, 0, 1 }),
+    mk.icon.coords and table.concat(mk.icon.coords, ","))
+local driver = bram.ns.flipbookDriver
+driver.scripts.OnUpdate(driver, 0.2) -- a little over one frame's worth of time
+check("marker: and plays on to the next", sameCoords(mk.icon.coords, { 0.125, 0.25, 0, 1 }),
+    table.concat(mk.icon.coords, ","))
+driver.scripts.OnUpdate(driver, 1.0) -- past the end of the loop
+check("marker: then loops back round", sameCoords(mk.icon.coords, { 0, 0.125, 0, 1 }), table.concat(mk.icon.coords, ","))
+local itemToast = bram.ns.Toast.Show("Test", "an item picture", "Interface\\Icons\\INV_Misc_Bag_08")
+check("toast: an item picture is shown whole, not sliced", sameCoords(itemToast.icon.coords, { 0, 1, 0, 1 }))
+bram.ns.Toast.Dismiss(itemToast)
+check("marker: named, with the yards", mk and mk.label.text:find("Come here", 1, true) and mk.yards.text == "141 yd",
+    mk and (mk.label.text .. " / " .. mk.yards.text))
+mk.scripts.OnUpdate(mk, 0.3)
+check("marker: pulses when it first appears", mk.scale and mk.scale > 1, mk.scale)
+mk.scripts.OnUpdate(mk, 4)
+check("marker: then settles", mk.scale == 1, mk.scale)
+check("ping: and a toast, with how far", toastHas(bram, "Ally Rose: |cff7fff7fCome here|r, 141 yd"), bram.ns.Toast.history[#bram.ns.Toast.history].text)
+check("ping: not in his chat", not logHas(bram, "Come here"))
+check("ping: and nothing in hers for sending it", not logHas(ally, "Pinged") and not logHas(ally, "Come here|r"))
+check("ping: his card says where to look", panel(bram).line4 == "Look for the arrow on your minimap", panel(bram).line4)
 check("ping: his card shows it", panel(bram).line3:find("Come here", 1, true) ~= nil, panel(bram).line3)
 check("ping: with how far away it is", panel(bram).line3:find("141 yd", 1, true) ~= nil, panel(bram).line3)
 
 bram.x, bram.y = 0.405, 0.60 -- five yards off
 advance(2)
 check("ping: walking up to it clears his pin", bram.waypoint == nil)
-check("ping: and tells him", logHas(bram, "You made it to Ally Rose's ping."))
-check("ping: and tells her", logHas(ally, "Bram Stone made it to your ping."))
+check("ping: arriving is quiet for him", not logHas(bram, "made it") and not toastHas(bram, "made it"))
+check("ping: and his card lets go of the hint", panel(bram).line4 == "", panel(bram).line4)
+check("marker: gone once he gets there", not mk.shown)
+check("ping: she gets a toast that he made it", toastHas(ally, "Bram Stone: Made it to your ping"))
 check("ping: his card goes back to normal", panel(bram).line3:find("Come here", 1, true) == nil, panel(bram).line3)
 
 ally.targetNPC = "Hogger"
 ally.slash("ping watch")
 advance(1)
-check("ping: Watch out names her target", logHas(bram, "Watch out|r: Hogger"))
+check("ping: Watch out names her target", toastHas(bram, "Watch out|r: Hogger"))
 ally.slash("ping come") -- straight after: too soon, dropped
 advance(1)
 check("ping: a second ping within a moment is dropped", bram.ns.Ping.Current().kind == "watch")
@@ -691,9 +751,13 @@ advance(300)
 check("ping: an old ping wears off after 5 minutes", bram.ns.Ping.Current() == nil)
 check("ping: and takes its pin with it", bram.waypoint == nil)
 
+bram.x, bram.y = 0.6, 0.6 -- well away from her, so the ping does not count as reached
 ally.slash("ping stand")
 advance(1)
+check("marker: shows for Stand here", mk.shown and mk.label.text:find("Stand here", 1, true) ~= nil)
 bram.waypoint = { uiMapID = 1436, position = { x = 0.1, y = 0.1 } } -- he puts down his own pin
+advance(2)
+check("marker: never floats over a pin he placed himself", not mk.shown)
 advance(301)
 check("ping: never clears a pin he placed himself", bram.waypoint and bram.waypoint.uiMapID == 1436)
 bram.waypoint = nil
@@ -707,25 +771,28 @@ bram.x, bram.y = 0.9, 0.9
 ally.slash("ping follow")
 advance(1)
 check("follow: he gets her spot", bram.waypoint and math.abs(bram.waypoint.position.x - 0.40) < 0.0001)
-check("follow: she is told it lasts 3 minutes", logHas(ally, "for the next 3 minutes"))
+check("follow: her own card counts down", panel(ally).line4:find("Sharing where you are, 2:5", 1, true) ~= nil, panel(ally).line4)
+check("follow: his card says to follow the arrow", panel(bram).line4 == "Follow the arrow on your minimap", panel(bram).line4)
 ally.x = 0.45
 advance(3)
 check("follow: the pin moves with her", bram.waypoint and math.abs(bram.waypoint.position.x - 0.45) < 0.0001,
     bram.waypoint and bram.waypoint.position.x)
-check("follow: without a new chat line each time", logCount(bram, "Follow me") == 1, logCount(bram, "Follow me"))
+check("follow: one toast, not one per step", toastCount(bram, "Follow me") == 1, toastCount(bram, "Follow me"))
 local before = #ally.sent
 advance(9)
 check("follow: standing still sends nothing", #ally.sent == before, #ally.sent - before)
 ally.slash("ping stop")
 advance(1)
-check("follow: stop reaches him", logHas(bram, "Ally Rose stopped sharing where they are."))
+check("follow: stop reaches him, quietly", bram.ns.Ping.Current() == nil and not logHas(bram, "stopped sharing"))
+check("follow: you typed it, so chat answers you", logHas(ally, "Stopped sharing where you are."))
+check("follow: and your card stops counting", panel(ally).line4 == "", panel(ally).line4)
 check("follow: and clears his pin", bram.waypoint == nil)
 
 advance(2)
 ally.slash("ping follow")
 advance(181)
 check("follow: ends by itself after 3 minutes", not ally.ns.Ping.Following())
-check("follow: and says so", logCount(ally, "Stopped sharing where you are.") == 2, logCount(ally, "Stopped sharing where you are."))
+check("follow: running out says nothing in chat", logCount(ally, "Stopped sharing where you are.") == 1, logCount(ally, "Stopped sharing where you are."))
 
 ally.inDungeon = true
 local sentBefore = #ally.sent
@@ -774,7 +841,7 @@ check("ask: Bram gets the question window", ask and ask.shown)
 check("ask: it says who is asking", ask and ask.title.text == "Ally Rose asks: should I keep this?", ask and ask.title.text)
 check("ask: and shows the item, once his game has looked it up", ask and ask.itemName.text:find("Darkmoon Faire Fortune", 1, true) ~= nil,
     ask and ask.itemName.text)
-check("ask: Ally is told it went", logHas(ally, "Asked Bram Stone about"))
+check("ask: asking puts nothing in chat", not logHas(ally, "Asked Bram Stone about"))
 
 ally.slash("ask |cffffffff|Hitem:2589::::::::60:::::|h[Linen Cloth]|h|r")
 advance(2)
@@ -784,7 +851,8 @@ ask.buttons.keep.scripts.OnClick()
 advance(2)
 local a = ally.ns.db.answers[19422]
 check("ask: his answer is saved on her side", a and a.answer == "keep" and a.from == "Bram Stone", a and a.answer)
-check("ask: and she hears it", logHas(ally, "Bram Stone says |cff7fbfffKeep|r for"))
+check("ask: his answer arrives as a toast", toastHas(ally, "Bram Stone: Says |cff7fbfffKeep|r: "))
+check("ask: and answering puts nothing in his chat", not logHas(bram, "Told Ally"))
 check("ask: then the next question shows", ask.shown and ask.itemName.text:find("Linen Cloth", 1, true) ~= nil, ask.itemName.text)
 
 local tip = { lines = {}, AddLine = function(self, t) self.lines[#self.lines + 1] = t end }
@@ -990,6 +1058,75 @@ advance(1)
 check("key: where let go never arrives, a second press sends", not ally.ns.Wheel.IsOpen()
     and bram.ns.Ping.Current() and bram.ns.Ping.Current().kind ~= "follow")
 
+-- The heart over your partner (off unless you turn it on)
+local heartBox = opt.heart
+local function plate(c, token, who)
+    c.plateUnits[token] = who
+    c.plates[token] = uiObject(c, "Frame")
+    fire(c, "NAME_PLATE_UNIT_ADDED", token)
+    return c.plates[token]
+end
+local function unplate(c, token)
+    fire(c, "NAME_PLATE_UNIT_REMOVED", token)
+    c.plateUnits[token], c.plates[token] = nil, nil
+end
+ally.ns.Options.Refresh()
+check("heart: off to begin with", ally.ns.db.heart == false and not heartBox:GetChecked())
+check("heart: and your nameplate setting is left alone", ally.cvars.nameplateShowFriends == "0")
+local bramPlate = plate(ally, "nameplate2", bram)
+check("heart: nothing shows while it is off", not ally.ns.Heart.IsShown())
+
+click(heartBox, true)
+local heart = ally.env.PartnerPanelHeart
+check("heart: turning it on switches friendly nameplates on", ally.cvars.nameplateShowFriends == "1")
+check("heart: floats over Bram", heart and heart.shown and heart.point and heart.point[2] == bramPlate,
+    heart and heart.point and tostring(heart.point[2]))
+check("heart: our heart picture, playing", heart.icon.texture == [[Interface\AddOns\PartnerPanel\media\ping-heart]]
+    and sameCoords(heart.icon.coords, { 0, 0.125, 0, 1 }), heart.icon.texture)
+plate(ally, "nameplate5", cara)
+check("heart: someone else walking by changes nothing", heart.point[2] == bramPlate)
+unplate(ally, "nameplate2")
+check("heart: gone when he walks out of range", not heart.shown)
+bramPlate = plate(ally, "nameplate7", bram)
+check("heart: back when he is close again", heart.shown and heart.point[2] == bramPlate)
+bramPlate.IsForbidden = function() return true end
+ally.ns.Heart.Rescan()
+check("heart: hidden where WoW keeps nameplates to itself", not heart.shown)
+bramPlate.IsForbidden = nil
+ally.ns.Heart.Rescan()
+
+-- Follow me from him, while his nameplate is on her screen: the sparkle sits on his head
+advance(3)
+bram.slash("ping follow")
+advance(1)
+local amk = ally.env.PartnerPanelPingMarker
+check("follow: the sparkle sits over his head, above the heart", amk and amk.shown and amk.point[2] == heart,
+    amk and amk.point and tostring(amk.point[2]))
+check("follow: just the sparkle, no words, up there", amk.label.text == "" and amk.yards.text == "")
+unplate(ally, "nameplate7")
+check("follow: out of range, it goes back to the map spot", amk.shown and amk.point[2] == ally.navFrame
+    and amk.label.text:find("Follow me", 1, true) ~= nil)
+bram.slash("ping stop")
+advance(1)
+
+click(heartBox, false)
+check("heart: turning it off puts nameplates back how they were", ally.cvars.nameplateShowFriends == "0")
+ally.cvars.nameplateShowFriends = "1" -- she had them on herself
+click(heartBox, true)
+click(heartBox, false)
+check("heart: but leaves them on if you had them on yourself", ally.cvars.nameplateShowFriends == "1")
+ally.cvars.nameplateShowFriends = "0"
+
+ally.lockdown = true
+click(heartBox, true)
+check("heart: mid-fight, the nameplate change waits", ally.cvars.nameplateShowFriends == "0"
+    and logHas(ally, "the heart appears once this one is over"))
+ally.lockdown = false
+fire(ally, "PLAYER_REGEN_ENABLED")
+check("heart: and happens when the fight ends", ally.cvars.nameplateShowFriends == "1")
+ally.settingsFrame.OnDefault()
+check("heart: Defaults turns it off again", ally.ns.db.heart == false and ally.cvars.nameplateShowFriends == "0")
+
 -- A client with no settings window: no errors, and /pp options says where to look
 local dana = newClient("Dana", "Reed", "Elwynn Forest", { noSettings = true })
 fire(dana, "ADDON_LOADED", "PartnerPanel")
@@ -998,6 +1135,22 @@ advance(1)
 dana.slash("options")
 check("settings: without a settings window, it says where to look", logHas(dana, "Find the settings in Options"))
 check("settings: and the card still works", panel(dana).name == "No partner linked yet", panel(dana).name)
+
+---------------------------------------------------------------------------
+-- Toasts fade on their own, a click sends one away, and at most three stack up
+---------------------------------------------------------------------------
+local T = ally.ns.Toast
+for _, f in ipairs(T.Active()) do T.Dismiss(f) end
+for i = 1, 4 do T.Show("Test", "note " .. i) end
+local stack = T.Active()
+check("toast: at most three at once", #stack == 3, #stack)
+check("toast: newest on top", stack[1].text.text == "note 4" and stack[3].text.text == "note 2")
+stack[1].scripts.OnUpdate(stack[1], 0.1)
+check("toast: fades in", stack[1].alpha and stack[1].alpha > 0 and stack[1].alpha < 1, stack[1].alpha)
+stack[1].scripts.OnUpdate(stack[1], 7)
+check("toast: and is gone after a few seconds", #T.Active() == 2)
+stack[2].scripts.OnClick(stack[2])
+check("toast: a click sends one away", #T.Active() == 1)
 
 ---------------------------------------------------------------------------
 -- The partner journal

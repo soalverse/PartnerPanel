@@ -67,9 +67,6 @@ function Keep.Ask(text)
         return false
     end
     ns.Comm.Send(partner, P.Encode("ASK", item))
-    lookup(item, function(link)
-        ns.Print("Asked %s about %s.", partner, link or "that item")
-    end)
     return true
 end
 
@@ -229,7 +226,6 @@ function Keep.Reply(word)
     local id = P.ItemID(asked.item)
     if id and ns.db.partner and ns.SameName(ns.db.partner, asked.from) then
         ns.Comm.Send(asked.from, P.Encode("ANSWER", id, word))
-        ns.Print("Told %s: %s %s.", asked.from, Keep.AnswerText(word), asked.link or "it")
         ns.Fire("ANSWERED", "sent", word, asked.from)
     end
     showNext()
@@ -255,8 +251,8 @@ ns.Listen("MESSAGE", function(kind, fields, from)
             ns.db.answers = ns.db.answers or {}
             ns.db.answers[id] = { answer = word, from = from, at = time() }
             ns.Fire("ANSWERED", "received", word, from)
-            lookup("item:" .. id, function(link)
-                ns.Print("%s says %s for %s.", from, Keep.AnswerText(word), link or "that item")
+            lookup("item:" .. id, function(link, texture)
+                ns.Toast.Show(from, ("Says %s: %s"):format(Keep.AnswerText(word), link or "that item"), texture)
             end)
         end
     end

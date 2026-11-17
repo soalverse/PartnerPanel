@@ -176,9 +176,14 @@ local function create()
     checkbox("sounds", -378, "Play a sound when a ping or a question arrives", nil,
         function() return ns.db.sounds ~= false end,
         function(v) ns.db.sounds = v end)
+    checkbox("heart", -404, "Float a heart over your partner",
+        "Switches on WoW's friendly nameplates while it is on, so other friendly players get name bars too."
+            .. " Shows within about 40 yards, and not inside dungeons.",
+        function() return ns.db.heart == true end,
+        function(v) ns.Heart.SetEnabled(v) end)
     -- The ping key: click the button, then press the key you want
     local keyName = label(frame, "GameFontHighlight", "Ping key")
-    keyName:SetPoint("TOPLEFT", LEFT + 4, -414)
+    keyName:SetPoint("TOPLEFT", LEFT + 4, -456)
     local keyButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     keyButton:SetSize(150, 22)
     keyButton:SetPoint("LEFT", keyName, "RIGHT", 12, 0)
@@ -281,6 +286,7 @@ function Options.Defaults()
     ns.Panel.SetAlpha(0.9)
     ns.db.altAsk = true
     ns.db.sounds = true
+    ns.Heart.SetEnabled(false)
     Options.Refresh()
 end
 
